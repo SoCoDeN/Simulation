@@ -1,19 +1,22 @@
-name: Test Data
+name: Check data and comment on PR
 
 on:
   pull_request
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   check_data:
     runs-on: ubuntu-latest
 
+    env:
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-
-      - name: Get branch name
-        shell: bash
-        run: echo "BRANCH=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,4 +27,26 @@ jobs:
         run: pip install pandas
 
       - name: Run script
-        run: python tools/check_data.py $BRANCH
+        id: check_data
+        shell: bash
+        run: python tools/check_data.py $BRANCH | tee results.txt
+
+      - name: Capture output
+        id: qc
+        if: (success() || failure())
+        run: |
+         {
+            echo "results<<EOF"
+            echo "$(cat results.txt)" 
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Auto comment
+        uses: marocchino/sticky-pull-request-comment@v2.9.0
+        if: (success() || failure())
+        with:
+          message: |
+            Data checking results:
+            ```
+            ${{ steps.qc.outputs.results }}"
+            ```

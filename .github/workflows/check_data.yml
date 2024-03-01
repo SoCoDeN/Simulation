@@ -3,7 +3,8 @@ name: Check data and comment on PR
 on:
   pull_request
 
-permissions: write-all
+permissions:
+  contents: read
 
 jobs:
   check_data:
@@ -27,25 +28,4 @@ jobs:
       - name: Run script
         id: check_data
         shell: bash
-        run: python tools/check_data.py $BRANCH | tee results.txt
-
-      - name: Capture output
-        id: qc
-        if: (success() || failure())
-        run: |
-         {
-            echo "results<<EOF"
-            echo "$(cat results.txt)" 
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Auto comment
-        uses: marocchino/sticky-pull-request-comment@v2.9.0
-        if: (success() || failure())
-        with:
-          message: |
-            Data checking results:
-            ```
-            ${{ steps.qc.outputs.results }}
-            ```
-            Please fix any errors by pushing updates to your branch.
+        run: python tools/check_data.py $BRANCH

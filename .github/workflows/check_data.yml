@@ -3,9 +3,7 @@ name: Check data and comment on PR
 on:
   pull_request
 
-permissions:
-  contents: read
-  pull-requests: write
+permissions: write-all
 
 jobs:
   check_data:

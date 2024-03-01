@@ -48,5 +48,6 @@ jobs:
           message: |
             Data checking results:
             ```
-            ${{ steps.qc.outputs.results }}"
+            ${{ steps.qc.outputs.results }}
             ```
+            Please fix any errors by pushing updates to your branch.

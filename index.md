@@ -11,10 +11,13 @@ title: Welcome!
 ---
 
 #### Are you ready to submit your data?
+- [x] &ensp; Data files are in csv format
 - [x] &ensp; All columns are present in my data file(s)
 - [x] &ensp; All columns are named properly
 - [x] &ensp; Data are coded according to the [data dictionary](pages/measures.html)
 - [x] &ensp; All measures are within the appropriate scales and distribution
+- [x] &ensp; I have forked the [Simulation repository](https://github.com/SoCoDeN/Simulation)
+- [x] &ensp; I have created a `site_name` branch and committed my data files (replace `site_name` with your chosen site's name)
 {: style='list-style-type: none'}
 
 ### [Submit data here](https://github.com/dmoracze/test.github.io/pulls)

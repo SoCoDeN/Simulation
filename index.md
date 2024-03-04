@@ -17,8 +17,9 @@ title: Welcome!
 - [x] &ensp; Data are coded according to the [data dictionary](pages/measures.html)
 - [x] &ensp; All measures are within the appropriate scales and distribution
 - [x] &ensp; I have forked the [Simulation repository](https://github.com/SoCoDeN/Simulation)
-- [x] &ensp; I have created a `site_name` branch and committed my data files (replace `site_name` with your chosen site's name)
+- [x] &ensp; I have created a `site_name` branch and committed my data files
 {: style='list-style-type: none'}
+(replace `site_name` with your chosen site's name)
 
 ### [Submit data here](https://github.com/dmoracze/test.github.io/pulls)
 

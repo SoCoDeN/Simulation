@@ -43,10 +43,10 @@ Simulation/
 
 ---
 <p align="center">
-    <img src="./images/Workflow_simulation_6.png" alt="Workflow"/>
+    <img src="./images/Workflow_simulation_6.png"/>
 </p>
 
 ---
 <p align="right">
-    <img src="./images/NIH_NIMH_Master_Logo_2Color.png" alt="Workflow" width="200"/>
+    <img src="./images/NIH_NIMH_Master_Logo_2Color.png" width="200"/>
 </p>

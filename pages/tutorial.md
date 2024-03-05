@@ -6,7 +6,7 @@ description: This is an in depth tutorial for how to submit the data.
 
 ### Tutorial
 
-I will tell you what to do. 
+The tutorial is forecoming, please check back in a day or two.
 
 ---
 <p align="right">

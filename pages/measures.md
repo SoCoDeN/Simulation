@@ -192,7 +192,7 @@ Sum of scores for attention problem section of CBCL
 - Quality control criteria:
     - Less that 20% missingness
     - All entries are positive and less than 1,000,000 mm^3
-    - 
+
 **White matter volume**
 - Column name: `wm_volume`
 - Data type: Integer

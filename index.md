@@ -39,7 +39,7 @@ Simulation/
 - [x] &ensp; All measures are within the appropriate scales and distribution
 {: style='list-style-type: none'}
 
-### [Create Pull Request](https://github.com/dmoracze/test.github.io/pulls)
+### [Create Pull Request](https://github.com/SoCoDeN/Simulation/pulls)
 
 ---
 <p align="center">

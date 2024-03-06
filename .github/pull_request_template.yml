@@ -1,8 +1,15 @@
 ## Thank you for submitting your code!
 ## Please ensure this checklist is complete before creating the pull request.
 
+- [ ] All of my data files are named `<site_ID>_data*.csv`
 - [ ] All columns are present in my data file(s)
 - [ ] All columns are named properly
 - [ ] Data are coded according to the data dictionary
 - [ ] All measures are within the appropriate scales and distribution
 
+```
+# to check boxes change:
+- [ ]
+# to:
+- [x]
+```

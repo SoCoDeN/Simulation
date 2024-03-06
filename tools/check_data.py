@@ -229,6 +229,9 @@ def qc_checks(og):
         if not (v>0).all() or not (v<5000000).all():
             errors.append('icv entries must all be greater than 0 and less than 5,000,000')
 
+    missing_cols.sort()
+    extra_cols.sort()
+    
     return errors, missing_cols, extra_cols
 
 def diff_month(d1,d2):

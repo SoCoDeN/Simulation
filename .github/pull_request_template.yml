@@ -7,9 +7,4 @@
 - [ ] Data are coded according to the data dictionary
 - [ ] All measures are within the appropriate scales and distribution
 
-```
-# to check boxes change:
-- [ ]
-# to:
-- [x]
-```
+To check boxes, change `- [ ]` to `- [x]`

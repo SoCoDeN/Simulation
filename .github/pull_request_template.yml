@@ -1,6 +1,7 @@
 ## Thank you for submitting your data!
 #### Please ensure this checklist is complete before creating the pull request.
 
+- [ ] My branch name is the same as my `Site_ID`
 - [ ] All of my data files are named `<site_ID>_data*.csv`
 - [ ] All columns are present in my data file(s)
 - [ ] All columns are named properly

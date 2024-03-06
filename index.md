@@ -39,6 +39,7 @@ Simulation/
 ```
 
 #### Are you ready to submit your data?
+- [x] &ensp; My branch name is the same as my `Site_ID`
 - [x] &ensp; All data files are named `<site_ID>_data*.csv`
 - [x] &ensp; All columns are present in my data file(s)
 - [x] &ensp; All columns are named properly

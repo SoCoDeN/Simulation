@@ -22,7 +22,7 @@ def qc_checks(og):
 
     # remove extra columns from data frame
     if len(extra_cols)>0:
-        cols = list(set(dict_cols_all) - set(extra_cols))
+        cols = list(set(og.columns).intersection(dict_cols_all))
         df = og[cols]
     else:
         df = og
@@ -258,7 +258,7 @@ def main():
         for file in sorted(files):
             print(f'++ Checking data file: {file}')
             df = pd.read_csv(file)
-            # errors, missing, extra = qc_checks(df)
+            #errors, missing, extra = qc_checks(df)
             try:
                 df = pd.read_csv(file)
                 errors, missing, extra = qc_checks(df)

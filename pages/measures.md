@@ -112,7 +112,7 @@ Sex of subject assigned at birth
 - Data type: Integer
 - Measure type: Demographic
 - Required: False
-- Time varying: True??
+- Time varying: True
 - Levels:
     - 0: Less than 12th grade (about 5.3% of sample)
     - 1: High school or GED (about 35.4% of sample)

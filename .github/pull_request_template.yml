@@ -8,3 +8,8 @@
 - [ ] All measures are within the appropriate scales and distribution
 
 To check boxes, change `- [ ]` to `- [x]`
+
+Once you create the pull request, we will automatically check your data files. \
+If the test fails, you can see the output:
+1. Click `Details` next to the failed job
+2. Click `Run script` to view the output of the QC checks

@@ -13,7 +13,7 @@ title: Welcome!
 To submit your simulated data files, you will need to:
 1. Fork [our repository](https://github.com/SoCoDeN/Simulation)
 2. Create a branch with the same name as your site ID
-3. Commit you data files to `data/<site_id_/`
+3. Commit your data files to `data/<site_id>/`
 4. Push your your data files to your remote repository
 5. Create a pull request into our repository
 

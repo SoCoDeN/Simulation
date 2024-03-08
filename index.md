@@ -55,7 +55,7 @@ If the test fails, you can see the output:
 1. Click `Details` next to the failed job
 2. Click `Run script` to view the output of the QC checks
 
-If the QC script fails, we will work with you until your data pass all QC criteria.
+*If the QC script fails*, we will work with you until your data pass all QC criteria.
 To fix any issues that arise:
 1. Correct the data files on your local copy of your forked repo
 2. Commit your changes

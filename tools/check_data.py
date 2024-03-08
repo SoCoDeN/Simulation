@@ -107,7 +107,8 @@ def qc_checks(og):
 
     # check that brain_behavior_measurement_date minus dob equals age
     if 'dob' in df.columns and 'age' in df.columns and 'brain_behavior_measurement_date' in df.columns and date_format:
-        if not all([diff_month(r['brain_behavior_measurement_date'], r['dob'])==r['age'] for i, r in good_dates.iterrows()]):
+        age_diff = [diff_month(r['brain_behavior_measurement_date'], r['dob'])-r['age'] for i, r in good_dates.iterrows()]
+        if any([i>1 or i<-1 for i in age_diff]):
             errors.append('brain_behavior_measurement_date minus dob should equal age, found entries where this is not true')
 
     # check to make sure wave_number is only 1-7

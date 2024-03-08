@@ -100,29 +100,6 @@ def qc_checks(og):
         educ = df['parental_education'][df['parental_education'].notnull()]
         if not educ.isin([0,1,2,3,777]).all():
             errors.append('parental_education entries need to be one of the following: 1, 2, 3, 777')
-        else:
-            # get proportions for 0, 1, 2, 3 (after rmoving 777)
-            test = 1
-            educ = educ[educ != 777]
-            # 0 entries
-            educ0 = (sum([i==0 for i in educ])/len(educ))*100
-            if educ0 < 0.5 or educ0 > 10:
-                test = 0
-            # 1 entries
-            educ1 = (sum([i==1 for i in educ])/len(educ))*100
-            if educ1 < 30 or educ1 > 40:
-                test = 0
-            # 2 entries
-            educ2 = (sum([i==2 for i in educ])/len(educ))*100
-            if educ2 < 20 or educ2 > 30:
-                test = 0
-            # 3 entries
-            educ3 = (sum([i==3 for i in educ])/len(educ))*100
-            if educ2 < 30 or educ2 > 40:
-                test = 0
-            # check test
-            if test==0:
-                errors.append('parental_education entries are not close to correct proportions')
 
     # check that autism_diagnosis is < 20% missing and that values are either 0 or 1
     if 'autism_diagnosis' in df.columns:

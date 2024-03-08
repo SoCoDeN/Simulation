@@ -114,10 +114,11 @@ Sex of subject assigned at birth
 - Required: False
 - Time varying: True
 - Levels:
-    - 0: Less than 12th grade (about 5.3% of sample)
-    - 1: High school or GED (about 35.4% of sample)
-    - 2: Bachelor's degree (about 25.3% of sample)
-    - 3: Master's or higher degree (about 34% of sample)
+    - 0:   Less than 12th grade (about 5.3% of sample)
+    - 1:   High school or GED (about 35.4% of sample)
+    - 2:   Bachelor's degree (about 25.3% of sample)
+    - 3:   Master's or higher degree (about 34% of sample)
+    - 777: Refused to answer
 - Quality control criteria:
     - Less that 20% missingness
     - All entries adhere to the appropriate levels

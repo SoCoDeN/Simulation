@@ -68,8 +68,8 @@ def qc_checks(og):
         summary['mean_age'] = age.mean()
         summary['min_age'] = age.min()
         summary['max_age'] = age.max()
-        if min(age) < 60 or max(age) > 264:
-            errors.append('age range is suspect, age(s) outside of 60 - 264 months found')
+        if min(age) < 60 or max(age) > 276:
+            errors.append('age range is suspect, age(s) outside of 60 - 276 months found')
 
     # make sure that sex is only 0 or 1
     if 'sex' in df.columns:
@@ -108,7 +108,7 @@ def qc_checks(og):
     # check that brain_behavior_measurement_date minus dob equals age
     if 'dob' in df.columns and 'age' in df.columns and 'brain_behavior_measurement_date' in df.columns and date_format:
         age_diff = [diff_month(r['brain_behavior_measurement_date'], r['dob'])-r['age'] for i, r in good_dates.iterrows()]
-        if any([i>1 or i<-1 for i in age_diff]):
+        if any([i>2 or i<-2 for i in age_diff]):
             errors.append('brain_behavior_measurement_date minus dob should equal age, found entries where this is not true')
 
     # check to make sure wave_number is only 1-7

@@ -133,6 +133,33 @@ For our example site (and for user dmoracze):
 
 The creation of the pull request will trigger a quality control script that will ensure that your data files meet the criteria outlined in the [data dictionary](measures.html). If the script fails, then we will respond with what the errors are and how to fix them.
 
+---
+### What to do if the QC script fails
+We will work with you to iteratively correct the errors in your data files until they pass our QC script.
+
+To see the output of the QC script, which includes a summary of your data files and a complete list of any errors:
+- Click `Details` next to the failed job
+- Click `Run script` to view the output of the QC checks
+
+To fix any issues that arise:
+- Correct the data files on your local copy of your forked repo
+- Add your updated data files to the staging area. For example, if your site is named nimh:
+```
+git add data/nimh/*.csv
+```
+- Commit your changes with a message about what you fixed
+```
+git commit -m 'fix dob format'
+```
+- Push your local repo to your remote fork. For example, if your site is named nimh:
+```
+git push origin nimh
+``` 
+
+Your pull request will automatically update when your forked repo changes and the QC script will re-run.
+
+_Your changes must be on the same branch as the one you used to create this pull request._
+
 [Back](../index.html)
 
 ---

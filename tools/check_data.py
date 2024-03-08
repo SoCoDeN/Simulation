@@ -57,11 +57,13 @@ def qc_checks(og):
 
     # check dob format and that there are no years earlier than 2000
     if 'dob' in df.columns:
+        date_format = True
         try:
             dates = [datetime.date.fromisoformat(item) for item in df['dob']]
             if any(item.year < 2000 for item in dates):
                 errors.append('dob is suspect, found year(s) of birth before 2000')
         except:
+            date_format = False
             print('dob date(s) are not in an appropriate format')
 
     # check brain_behavior_measurement_date is < 20% missing, proper format, and that there are no years earlier than 2000
@@ -74,10 +76,11 @@ def qc_checks(og):
             if any(item.year < 2000 for item in dates):
                 errors.append('brain_behavior_measurement_date is suspect, found year(s) of birth before 2000')
         except:
+            date_format = False
             print('brain_behavior_measurement_date date(s) are not in an appropriate format')
 
     # check that brain_behavior_measurement_date minus dob equals age
-    if 'dob' in df.columns and 'age' in df.columns and 'brain_behavior_measurement_date' in df.columns:
+    if 'dob' in df.columns and 'age' in df.columns and 'brain_behavior_measurement_date' in df.columns and date_format:
         if not all([diff_month(r['brain_behavior_measurement_date'], r['dob'])==r['age'] for i, r in good_dates.iterrows()]):
             errors.append('brain_behavior_measurement_date minus dob should equal age, found entries where this is not true')
 

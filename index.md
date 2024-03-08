@@ -58,12 +58,12 @@ If the test fails, you can see the output:
 If the QC script fails, we will work with you until your data pass all QC criteria.
 To fix any issues that arise:
 1. Correct the data files on your local copy of your forked repo
-2. Add your updated data files to the staging area and commit your changes
+2. Commit your changes
 3. Push your local repo to your remote fork
 
 This pull request will automatically update when your forked repo changes.
 
-_make sure your changes are on the same branch as the one you used to create this pull request_
+_Your changes must be on the same branch as the one you used to create this pull request._
 
 ---
 <p align="right">

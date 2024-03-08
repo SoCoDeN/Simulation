@@ -128,7 +128,7 @@ def qc_checks(og):
         # grab only not null parental_education
         educ = df['parental_education'][df['parental_education'].notnull()]
         if not educ.isin([0,1,2,3,777]).all():
-            errors.append('parental_education entries need to be one of the following: 1, 2, 3, 777')
+            errors.append('parental_education entries need to be one of the following: 0, 1, 2, 3, 777')
 
     # check that autism_diagnosis is < 20% missing and that values are either 0 or 1
     if 'autism_diagnosis' in df.columns:

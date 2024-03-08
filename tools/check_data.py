@@ -301,6 +301,8 @@ def main():
                         print('++ Extra columns found:')
                         for col in extra:
                             print(f'    {col}')
+                else:
+                    print('++ No errors found!')
             except:
                 print(f'ERROR: There was a problem reading data file: {file}')
                 fail = 1

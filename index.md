@@ -55,6 +55,16 @@ If the test fails, you can see the output:
 1. Click `Details` next to the failed job
 2. Click `Run script` to view the output of the QC checks
 
+If the QC script fails, we will work with you until your data pass all QC criteria.
+To fix any issues that arise:
+1. Correct the data files on your local copy of your forked repo
+2. Add your updated data files to the staging area and commit your changes
+3. Push your local repo to your remote fork
+
+This pull request will automatically update when your forked repo changes.
+
+_make sure your changes are on the same branch as the one you used to create this pull request_
+
 ---
 <p align="right">
     <img src="./images/NIH_NIMH_Master_Logo_2Color.png" alt="nimh" width="200"/>

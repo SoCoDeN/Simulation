@@ -13,6 +13,11 @@ def qc_checks(og):
     errors = []
     missing_cols = []
     extra_cols = []
+    summary = {}
+
+    # raw data summary
+    summary['raw_rows'] = og.shape[0]
+    summary['raw_columns'] = og.shape[1]
 
     # make sure all column names (and only expected columns) are present
     if not all(item in list(og.columns) for item in dict_cols_all):
@@ -27,6 +32,15 @@ def qc_checks(og):
     else:
         df = og
 
+    # number of properly named columns
+    summary['correct_cols'] = df.shape[1]
+    # number of missing columns
+    if len(missing_cols)>0:
+        summary['missing'] = len(missing_cols)
+    # number of extra columns
+    if len(extra_cols)>0:
+        summary['extra'] = len(extra_cols)
+
     # replace NA with NaN
     df = df.replace('NA', np.nan)
 
@@ -35,6 +49,10 @@ def qc_checks(og):
     # make sure that there are non-NA values in all required columns
     if not df[cols_required].notnull().all().all():
         errors.append('Found NA entries in required columns')
+
+    # get number of unique subjects
+    if 'subject_id' in df.columns:
+        summary['num_subjs'] = len(df['subject_id'].unique())
 
     # make sure that site_id is the same for all rows
     if 'site_id' in df.columns:
@@ -47,6 +65,9 @@ def qc_checks(og):
             errors.append('age has more than 20% of entries missing')
         # grab only not null ages
         age = df['age'][df['age'].notnull()]
+        summary['mean_age'] = age.mean()
+        summary['min_age'] = age.min()
+        summary['max_age'] = age.max()
         if min(age) < 60 or max(age) > 264:
             errors.append('age range is suspect, age(s) outside of 60 - 264 months found')
 
@@ -54,17 +75,22 @@ def qc_checks(og):
     if 'sex' in df.columns:
         if not all([item==0 or item==1 for item in df['sex']]):
             errors.append('sex must be only either 0 or 1')
+        else:
+            if 'subject_id' in df.columns:
+                sex_group = df.groupby(['subject_id', 'sex']).size().reset_index()
+                summary['num_male'] = sum(sex_group['sex']==0)
+                summary['num_female'] = sum(sex_group['sex']==1)
 
     # check dob format and that there are no years earlier than 2000
+    date_format = True
     if 'dob' in df.columns:
-        date_format = True
         try:
             dates = [datetime.date.fromisoformat(item) for item in df['dob']]
             if any(item.year < 2000 for item in dates):
                 errors.append('dob is suspect, found year(s) of birth before 2000')
         except:
             date_format = False
-            print('dob date(s) are not in an appropriate format')
+            errors.append('dob date(s) are not in an appropriate format')
 
     # check brain_behavior_measurement_date is < 20% missing, proper format, and that there are no years earlier than 2000
     if 'brain_behavior_measurement_date' in df.columns:
@@ -77,7 +103,7 @@ def qc_checks(og):
                 errors.append('brain_behavior_measurement_date is suspect, found year(s) of birth before 2000')
         except:
             date_format = False
-            print('brain_behavior_measurement_date date(s) are not in an appropriate format')
+            errors.append('brain_behavior_measurement_date date(s) are not in an appropriate format')
 
     # check that brain_behavior_measurement_date minus dob equals age
     if 'dob' in df.columns and 'age' in df.columns and 'brain_behavior_measurement_date' in df.columns and date_format:
@@ -212,7 +238,7 @@ def qc_checks(og):
     missing_cols.sort()
     extra_cols.sort()
     
-    return errors, missing_cols, extra_cols
+    return errors, missing_cols, extra_cols, summary
 
 def diff_month(d1,d2):
     # find the difference between two dates in months
@@ -244,7 +270,24 @@ def main():
             #errors, missing, extra = qc_checks(df)
             try:
                 df = pd.read_csv(file)
-                errors, missing, extra = qc_checks(df)
+                errors, missing, extra, summary = qc_checks(df)
+                print('++ Date File Summary:')
+                print(f'    Number of rows: {summary["raw_rows"]}')
+                print(f'    Number of columns: {summary["raw_columns"]}')
+                if summary['correct_cols']>0:
+                    print(f'    Number of correctly names columns: {summary["correct_cols"]}')
+                if len(missing)>0:
+                    print(f'    Number of missing columns: {summary["missing"]}')
+                if len(extra)>0:
+                    print(f'    Number of extra columns: {summary["extra"]}')
+                if 'subject_id' in df.columns:
+                    print(f'    Number of unique subjects: {summary["num_subjs"]}')
+                if 'age' in df.columns:
+                    print(f'    Age column: mean={summary["mean_age"]}, min={summary["min_age"]}, max={summary["max_age"]}')
+                if 'sex' in df.columns:
+                    print(f'    Number of males: {summary["num_male"]}')
+                    print(f'    Number of females: {summary["num_female"]}')
+                print(' ')
                 if len(errors) > 0:
                     print(f'++ {len(errors)} ERRORS FOUND:')
                     fail = 1

@@ -1,10 +1,12 @@
 ## Thank you for submitting your data!
 #### Please ensure this checklist is complete before creating the pull request.
 
+See the [data dicitonary](https://socoden.github.io/Simulation/pages/measures.html) for details on required columns, column names, measure coding, etc...
+
 - [ ] My branch name is the same as my `Site_ID`
 - [ ] All of my data files are named `<site_ID>_data*.csv`
-- [ ] All columns are present in my data file(s)
-- [ ] All columns are named properly
+- [ ] All required columns are present in my data file(s)
+- [ ] All required columns are named properly
 - [ ] Data are coded according to the data dictionary
 - [ ] All measures are within the appropriate scales and distribution
 

@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Project abstract
+title: Project summary
 description: Full project abstract with references
 ---
 

@@ -53,7 +53,7 @@ Site ID should be made up and team/researchers who created the data should not b
 - Time varying: True
 - Quality control criteria: \
     - Less that 20% missingness
-    - All entries are between 60 and 264 months
+    - All entries are between 60 and 276 months
     - `brain_behavior_measurement_date` - `dob` = `age`
 - Notes: \
 Age in months at the time of the interview/test/sampling/imaging.

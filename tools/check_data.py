@@ -17,6 +17,8 @@ def qc_checks(og):
 
     # raw data summary
     summary['raw_rows'] = og.shape[0]
+    if og.shape[0]!=70000:
+        errors.append('Data file does not have 70,000 rows')
     summary['raw_columns'] = og.shape[1]
 
     # make sure all column names (and only expected columns) are present
@@ -52,14 +54,17 @@ def qc_checks(og):
 
     # get number of unique subjects
     if 'subject_id' in df.columns:
-        summary['num_subjs'] = len(df['subject_id'].unique())
+        num_subjs = len(df['subject_id'].unique())
+        summary['num_subjs'] = num_subjs
+        if num_subjs!=10000:
+            errors.append('Number of unique subjects is not 10,000')
 
     # make sure that site_id is the same for all rows
     if 'site_id' in df.columns:
         if not df['site_id'].eq(df['site_id'][0]).all():
             errors.append('site_id should be the same throughout the data file')
 
-    # make sure age is < 20% missing and is within a 60 month and 264 month range
+    # make sure age is < 20% missing and is within a 60 month and 276 month range
     if 'age' in df.columns:
         if (df['age'].isnull().sum() * 100 / len(df)) > 20:
             errors.append('age has more than 20% of entries missing')
@@ -105,7 +110,7 @@ def qc_checks(og):
             date_format = False
             errors.append('brain_behavior_measurement_date date(s) are not in an appropriate format')
 
-    # check that brain_behavior_measurement_date minus dob equals age
+    # check that brain_behavior_measurement_date minus dob is withing +/- 2 months
     if 'dob' in df.columns and 'age' in df.columns and 'brain_behavior_measurement_date' in df.columns and date_format:
         age_diff = [diff_month(r['brain_behavior_measurement_date'], r['dob'])-r['age'] for i, r in good_dates.iterrows()]
         if any([i>2 or i<-2 for i in age_diff]):

@@ -42,7 +42,7 @@ Please follow the following guidelines when you create the datasets, more inform
 * **Cognitive measures:** IQ (mean = 100, standard deviation = 15)
 * **Behavioral measures:** internalizing and externalizing symptoms and attention problems scale based on child behavior checklist (CBCL)
 * **Autism diagnosis:** 0: no, 1: yes
-* **Brain volume measures:** intracranial volume, total gray matter volume, total white matter volume, hippocampal volume, amygdala volume, and cortical thickness of frontal lobe. The units should be in mm3. Each group determines the starting point and trajectory of each brain measure 
+* **Brain volume measures:** intracranial volume, total gray matter volume, total white matter volume, hippocampal volume, amygdala volume, and cortical thickness of frontal lobe. The units should be in mm<sup>3</sup> for volumetric measures and mm for cortical thickness. Each group determines the starting point and trajectory of each brain measure 
 * **Parental Education:** 0: less than 12th grade (5.3%), 1: High School or GED (35.4%), 2: Bachelor’s Degree (25.3%), 3: Master’s or higher degree (34%)
 
 **Attrition/Missing data:** Missing timepoints 20% \

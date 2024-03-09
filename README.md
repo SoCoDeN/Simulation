@@ -3,4 +3,4 @@
 
 Welcome!
 
-You can find the full details of the project, including the abstract, data dictionary, and how to subject your data [here](https://socoden.github.io/Simulation/).
+You can find the full details of the project, including the summary, data dictionary, and how to submit your data [here](https://socoden.github.io/Simulation/).

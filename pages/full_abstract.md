@@ -1,7 +1,7 @@
 ---
 layout: page
 title: Project summary
-description: Full project abstract with references
+description: Full project summary with references
 ---
 
 ### 1. Introduction

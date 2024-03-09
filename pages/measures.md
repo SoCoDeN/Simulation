@@ -7,7 +7,7 @@ description: This is an in depth tutorial for how to submit the data.
 Your data files must contain _all_ columns. 
 The column names, measure coding, data ranges, and distributions (where specified) _must_ adhere to the below criteria before we merge your pull request into our main branch.
 
-**Number of subjects**: 10,000
+**Number of subjects**: 10,000\
 **Number of rows**: 70,000
 
 **Notes:**

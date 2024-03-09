@@ -4,7 +4,7 @@ title: Welcome!
 ---
 
 #### Quick links:
-&emsp; [Project abstract](pages/full_abstract.html) \
+&emsp; [Project summary](pages/full_abstract.html) \
 &emsp; [Description of measures and data dictionary](pages/measures.html) \
 &emsp; [Data submission tutorial](pages/tutorial.html) \
 &emsp; [Ready to submit?](#ready)

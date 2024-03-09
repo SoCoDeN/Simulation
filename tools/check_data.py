@@ -110,7 +110,7 @@ def qc_checks(og):
             date_format = False
             errors.append('brain_behavior_measurement_date date(s) are not in an appropriate format')
 
-    # check that brain_behavior_measurement_date minus dob equals age
+    # check that brain_behavior_measurement_date minus dob is withing +/- 2 months
     if 'dob' in df.columns and 'age' in df.columns and 'brain_behavior_measurement_date' in df.columns and date_format:
         age_diff = [diff_month(r['brain_behavior_measurement_date'], r['dob'])-r['age'] for i, r in good_dates.iterrows()]
         if any([i>2 or i<-2 for i in age_diff]):

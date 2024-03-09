@@ -13,6 +13,7 @@ The column names, measure coding, data ranges, and distributions (where specifie
 - When Required == True in the dictionary below, each row _must_ have an entry in this column. \
 That is, there can be no missing data.
 - Each group should decide the effect size and amount of noise they would like to include 
+- Missing values should be coded as `NA`
 
 **Quality control criteria for entire data file**
 - All columns are present and named appropriately 

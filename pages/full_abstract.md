@@ -9,9 +9,9 @@ Neuroimaging has contributed considerably to our understanding of brain developm
 
 Replicability of brain-behavior studies will improve with pre-registration, better study design (e.g. longitudinal studies), better phenotyping, technological advancement which can lead to better quality data and signal to noise ratio, increased sample size afforded by large scale studies, data sharing and open science [14,15]. However, one of the challenges in the field of neuroimaging is that in most cases we lack knowledge about the underlying truth and whether our methods can detect these changes. Simulated datasets are one way that we can test hypotheses and assess whether our current models can capture the complex brain-behavior relationship.
 
-Here, we focus on the critical period of childhood and adolescence, a time of rapid change in physical, emotional, and intellectual growth. We propose a project which consists of three components. 
+Here, we focus on the critical period of childhood and adolescence, a time of rapid change in physical, emotional, and intellectual growth. We propose a project which consists of three stages: 
 
-* **Stage 1 – Generation of simulated data by collaborators** 
+* **Stage 1 – Generation of simulated data by the collaborators** 
 Multiple independent groups create simulated longitudinal datasets in line with how they think brain development takes place, including the interaction between brain, behavior, and cognition. Each group will work independently and blinded to the approaches and assumptions made by the other groups. The generated simulated datasets will be made freely available to the research community. The code to generate the datasets will not be shared within the first year, to provide researchers the opportunity to test different models.
 
 * **Stage 2 – Generation of models by the community**
@@ -27,7 +27,7 @@ Each group with expertise in brain development will simulate longitudinal data i
 
 Each group will simulate three sets of longitudinal data for brain measures such as volume and cortical thickness as well as cognitive and behavioral measures based on their understanding and models of development. These datasets will be released to the research community where different modeling approaches (e.g., linear mixed effects model, cross-lagged panel model) can be used to estimate brain-behavior relationship.
 
-Please follow the following guidelines when you create the datasets, more information about each variable is available at (add the link to the data dictionary):
+Please follow the following guidelines when you create the datasets, more information about each variable is available in the [data dictionary](./measures.md):
 * **Number of subjects**: 10,000
 * **Number of waves/time-points per subject:** 7 (about every two years)
 * **Age:** 7-20 years

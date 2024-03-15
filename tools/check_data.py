@@ -273,24 +273,31 @@ def main():
         for file in sorted(files):
             print(f'++ Checking data file: {file}')
             df = pd.read_csv(file)
-            #errors, missing, extra = qc_checks(df)
+            #errors, missing, extra, summary = qc_checks(df)
             try:
                 df = pd.read_csv(file)
+            except:
+                print(f'ERROR: There was a problem reading data file: {file}')
+                fail = 1
+            if fail==0:
                 errors, missing, extra, summary = qc_checks(df)
                 print('++ Date File Summary:')
-                print(f'    Number of rows: {summary["raw_rows"]}')
-                print(f'    Number of columns: {summary["raw_columns"]}')
-                if summary['correct_cols']>0:
-                    print(f'    Number of correctly names columns: {summary["correct_cols"]}')
-                if len(missing)>0:
+                if 'raw_rows' in summary:
+                    print(f'    Number of rows: {summary["raw_rows"]}')
+                if 'raw_columns' in summary:
+                    print(f'    Number of columns: {summary["raw_columns"]}')
+                if 'correct_cols' in summary:
+                    if summary['correct_cols']>0:
+                        print(f'    Number of correctly names columns: {summary["correct_cols"]}')
+                if len(missing)>0 and 'missing' in summary:
                     print(f'    Number of missing columns: {summary["missing"]}')
-                if len(extra)>0:
+                if len(extra)>0 and 'extra' in summary:
                     print(f'    Number of extra columns: {summary["extra"]}')
-                if 'subject_id' in df.columns:
+                if 'subject_id' in df.columns and 'num_subjs' in summary:
                     print(f'    Number of unique subjects: {summary["num_subjs"]}')
-                if 'age' in df.columns:
+                if 'age' in df.columns and all(k in summary for k in ['mean_age', 'min_age', 'max_age']):
                     print(f'    Age column: mean={summary["mean_age"]}, min={summary["min_age"]}, max={summary["max_age"]}')
-                if 'sex' in df.columns:
+                if 'sex' in df.columns and all(k in summary for k in ['num_male', 'num_female']):
                     print(f'    Number of males: {summary["num_male"]}')
                     print(f'    Number of females: {summary["num_female"]}')
                 print(' ')
@@ -309,9 +316,6 @@ def main():
                             print(f'    {col}')
                 else:
                     print('++ No errors found!')
-            except:
-                print(f'ERROR: There was a problem reading data file: {file}')
-                fail = 1
             print('++ ----------')
 
     # exit codes

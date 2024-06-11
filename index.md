@@ -66,6 +66,4 @@ This pull request will automatically update when your forked repo changes.
 _Your changes must be on the same branch as the one you used to create this pull request._
 
 ---
-<p align="right">
-    <img src="./images/NIH_NIMH_Master_Logo_2Color.png" alt="nimh" width="200"/>
-</p>
+

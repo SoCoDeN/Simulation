@@ -163,6 +163,3 @@ _Your changes must be on the same branch as the one you used to create this pull
 [Back](../index.html)
 
 ---
-<p align="right">
-    <img src="../images/NIH_NIMH_Master_Logo_2Color.png" width="200"/>
-</p>

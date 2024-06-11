@@ -249,6 +249,4 @@ Sum of scores for attention problem section of CBCL
 [Back](../index.html)
 
 ---
-<p align="right">
-    <img src="../images/NIH_NIMH_Master_Logo_2Color.png" width="200"/>
-</p>
+

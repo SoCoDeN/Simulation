@@ -88,6 +88,3 @@ Please follow the following guidelines when you create the datasets, more inform
 [17] Madan, C. R & Kensinger, E. A. (2017) Test–retest reliability of brain morphology estimates. Brain informatics 4, 107–121. 
 
 ---
-<p align="right">
-    <img src="../images/NIH_NIMH_Master_Logo_2Color.png" alt="Workflow" width="200"/>
-</p>

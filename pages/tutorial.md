@@ -54,46 +54,46 @@ Resolving deltas: 100% (38/38), done.
 ```
 cd Simulation
 ```
-- Create a branch called your site ID. For example, if your site is named nimh:
+- Create a branch called your site ID. For example, if your site is named site01:
 ```
-git checkout -b nimh
+git checkout -b site01
 ```
 You should see the following output:
 ```
-Switched to a new branch 'nimh'
+Switched to a new branch 'site01'
 ```
-- Create your site's data directory. For example, if your site is named nimh:
+- Create your site's data directory. For example, if your site is named site01:
 ```
-mkdir -p data/nimh
+mkdir -p data/site01
 ```
 - Copy your CSV data files into your site's data directory. \
 When complete, your data directory tree should look like:
 ```
 data
-└── nimh
-    ├── nimh_data1.csv
-    ├── nimh_data2.csv
-    └── nimh_data3.csv
+└── site01
+    ├── site01_data1.csv
+    ├── site01_data2.csv
+    └── site01_data3.csv
 ```
 **Note:** You do not need to submit all 3 data files at the same time
-- Add your data to the staging area. For example, if your site is named nimh:
+- Add your data to the staging area. For example, if your site is named site01:
 ```
-git add data/nimh/*.csv
+git add data/site01/*.csv
 ```
-- Commit your data files. For example, if your site is named nimh:
+- Commit your data files. For example, if your site is named site01:
 ```
-git commit -m 'add nimh data'
+git commit -m 'add site01 data'
 ```
 For our example site, you should see the following output:
 ```
  3 files changed, 0 insertions(+), 0 deletions(-)
- create mode 100644 data/nimh/nimh_data1.csv
- create mode 100644 data/nimh/nimh_data2.csv
- create mode 100644 data/nimh/nimh_data3.csv
+ create mode 100644 data/site01/site01_data1.csv
+ create mode 100644 data/site01/site01_data2.csv
+ create mode 100644 data/site01/site01_data3.csv
 ```
-- Push your local repository to remote. For example, if your site is named nimh:
+- Push your local repository to remote. For example, if your site is named site01:
 ```
-git push origin nimh
+git push origin site01
 ```
 For our example site (and for user dmoracze, who is writing this tutorial), you should see the following output:
 ```
@@ -105,11 +105,11 @@ Writing objects: 100% (5/5), 359 bytes | 359.00 KiB/s, done.
 Total 5 (delta 1), reused 0 (delta 0), pack-reused 0
 remote: Resolving deltas: 100% (1/1), completed with 1 local object.
 remote:
-remote: Create a pull request for 'nimh' on GitHub by visiting:
-remote:      https://github.com/dmoracze/Simulation/pull/new/nimh
+remote: Create a pull request for 'site01' on GitHub by visiting:
+remote:      https://github.com/dmoracze/Simulation/pull/new/site01
 remote:
 To https://github.com/dmoracze/Simulation.git
- [new branch]      nimh -> nimh
+ [new branch]      site01 -> site01
 ```
 
 ---
@@ -143,17 +143,17 @@ To see the output of the QC script, which includes a summary of your data files 
 
 To fix any issues that arise:
 - Correct the data files on your local copy of your forked repo
-- Add your updated data files to the staging area. For example, if your site is named nimh:
+- Add your updated data files to the staging area. For example, if your site is named site01:
 ```
-git add data/nimh/*.csv
+git add data/site01/*.csv
 ```
 - Commit your changes with a message about what you fixed
 ```
 git commit -m 'fix dob format'
 ```
-- Push your local repo to your remote fork. For example, if your site is named nimh:
+- Push your local repo to your remote fork. For example, if your site is named site01:
 ```
-git push origin nimh
+git push origin site01
 ``` 
 
 Your pull request will automatically update when your forked repo changes and the QC script will re-run.

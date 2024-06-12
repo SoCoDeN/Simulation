@@ -28,14 +28,14 @@ Please see our [data dictionary](pages/measures.html) for information about the 
 and see our [data submission tutorial](pages/tutorial.html) for a complete walkthrough of how to submit your data.
 
 Data files should be named: `<site_id>_data*.csv`, where `site_id` is your site ID and `*` is an integer.
-For example, if your site ID is `nimh` and you are submitting 3 data files, your tree should look like:
+For example, if your site ID is `site01` and you are submitting 3 data files, your tree should look like:
 ```
 Simulation/
     data/
-        nimh/
-            nimh_data1.csv
-            nimh_data2.csv
-            nimh_data3.csv
+        site01/
+            site01_data1.csv
+            site01_data2.csv
+            site01_data3.csv
 ```
 
 #### Are you ready to submit your data?

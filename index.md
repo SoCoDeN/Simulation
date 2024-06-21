@@ -6,8 +6,14 @@ title: Welcome!
 #### Quick links:
 &emsp; [Project summary](pages/full_abstract.html) \
 &emsp; [Description of measures and data dictionary](pages/measures.html) \
+
+<details>
+<summary>Legacy pages</summary>
+(SUBMISSIONS ARE CLOSED) \
 &emsp; [Data submission tutorial](pages/tutorial.html) \
-&emsp; [LEGACY: Ready to submit?](pages/submit.html) (SUBMISSIONS ARE CLOSED)
+&emsp; [Ready to submit?](pages/submit.html)
+</details>
+
 
 ---
 <p align="center">

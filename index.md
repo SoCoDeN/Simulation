@@ -7,7 +7,7 @@ title: Welcome!
 &emsp; [Project summary](pages/full_abstract.html) \
 &emsp; [Description of measures and data dictionary](pages/measures.html) \
 &emsp; [Data submission tutorial](pages/tutorial.html) \
-&emsp; [LEGACY: Ready to submit?](pages/submit.html) (SUBMISSIONS ARE CLOSED) \
+&emsp; [LEGACY: Ready to submit?](pages/submit.html) (SUBMISSIONS ARE CLOSED)
 
 ---
 <p align="center">

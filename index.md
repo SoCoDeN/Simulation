@@ -11,10 +11,8 @@ In brief: we ask you to submit an abstract per simulation site listing your resu
 _Submission will close December 15, 2024, 23.59 (11.59pm) EST_
 
 #### Quick links:
-&emsp; [Project summary](pages/full_abstract.html) \
+&emsp; [Project summary](https://osf.io/yjt9p/) \
 &emsp; [Description of measures and data dictionary](pages/measures.html) \
-&emsp; [LEGACY: Data submission tutorial](pages/tutorial.html) \
-&emsp; [LEGACY: Ready to submit?](pages/submit.html) (SUBMISSIONS ARE CLOSED)
 
 ---
 <p align="center">

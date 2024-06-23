@@ -12,7 +12,7 @@ _Submission will close December 15, 2024, 23.59 (11.59pm) EST_
 
 #### Quick links:
 &emsp; [Project summary](https://osf.io/yjt9p/) \
-&emsp; [Description of measures and data dictionary](pages/measures.html) \
+&emsp; [Description of measures and data dictionary](pages/measures.html)
 
 ---
 <p align="center">

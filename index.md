@@ -3,12 +3,12 @@ layout: page
 title: Welcome!
 ---
 
-## Coming soon!
+ ## Next steps
  
-This page will detail instructions on how to submit the results of your group's effort to unravel the patterns in the simulated datasets.
-In brief: we ask you to submit an abstract per simulation site listing your results for each dataset within that site.
+ The next steps for this project are to subject the code you used to generate your datasets. 
+ The procedure will be similar to how you originally submitted your data, via pull request:
  
-_Submission deadline has been extended to March 15, 2025, 23.59 (11.59pm) EST_
+[Code submission tutorial](pages/code_tutorial.html)
 
 #### Quick links:
 &emsp; [Project summary](https://osf.io/yjt9p/) \

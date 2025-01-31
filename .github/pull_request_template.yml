@@ -1,30 +1,30 @@
 ## Thank you for submitting your data!
 #### Please ensure this checklist is complete before creating the pull request.
 
-See the [data dicitonary](https://socoden.github.io/Simulation/pages/measures.html) for details on required columns, column names, measure coding, etc...
+# See the [data dicitonary](https://socoden.github.io/Simulation/pages/measures.html) for details on required columns, column names, measure coding, etc...
 
-- [ ] My branch name is the same as my `Site_ID`
-- [ ] All of my data files are named `<site_ID>_data*.csv`
-- [ ] All required columns are present in my data file(s)
-- [ ] All required columns are named properly
-- [ ] Data are coded according to the data dictionary
-- [ ] All measures are within the appropriate scales and distribution
+# - [ ] My branch name is the same as my `Site_ID`
+# - [ ] All of my data files are named `<site_ID>_data*.csv`
+# - [ ] All required columns are present in my data file(s)
+# - [ ] All required columns are named properly
+# - [ ] Data are coded according to the data dictionary
+# - [ ] All measures are within the appropriate scales and distribution
 
-To check boxes above, change `- [ ]` to `- [x]`
+# To check boxes above, change `- [ ]` to `- [x]`
 
----
+# ---
 
-Once you create the pull request, we will automatically check your data files. \
-If the test fails, you can see the output:
-1. Click `Details` next to the failed job
-2. Click `Run script` to view the output of the QC checks
+# Once you create the pull request, we will automatically check your data files. \
+# If the test fails, you can see the output:
+# 1. Click `Details` next to the failed job
+# 2. Click `Run script` to view the output of the QC checks
 
-If the QC script fails, we will work with you until your data pass all QC criteria.
-To fix any issues that arise:
-1. Correct the data files on your local copy of your forked repo
-2. Add your updated data files to the staging area and commit your changes
-3. Push your local repo to your remote fork
+# If the QC script fails, we will work with you until your data pass all QC criteria.
+# To fix any issues that arise:
+# 1. Correct the data files on your local copy of your forked repo
+# 2. Add your updated data files to the staging area and commit your changes
+# 3. Push your local repo to your remote fork
 
-This pull request will automatically update when your forked repo changes.
+# This pull request will automatically update when your forked repo changes.
 
-_make sure your changes are on the same branch as the one you used to create this pull request_
+# _make sure your changes are on the same branch as the one you used to create this pull request_

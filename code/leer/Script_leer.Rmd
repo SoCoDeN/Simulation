@@ -1,0 +1,1512 @@
+---
+title: "leer_dataset"
+author: "Lea Michel"
+date: "2025-01-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Guidelines on the simulated dataset
+
+Number of subjects: 10 000
+Number of waves/time-points per subject: 7 (about every two years)
+Age: 7-20 years. Starting with an age window between 7 and 8 years and continuing every two years to 20 years: Wave 1 – 7-8 years-of-age; Wave 2 – 9-10 years-of-age; Wave 3 – 11-12 years-of-age; Wave 4 – 13-14 years-of-age; Wave 5 – 15-16 years-of-age; Wave 6 – 17-18 years-of-age; Wave 7 – 19-20 years- of-age.
+
+Sex: 0: male (approximately 50%), 1: female (approximately 50%)
+Cognitive measures: IQ (mean = 100, standard deviation = 15)
+Behavioral measures: internalizing and externalizing symptoms and attention problems scale based on child behavior checklist (CBCL)
+Autism diagnosis: 0: no, 1: yes. The prevalence in the population is currently about 2%.
+Brain volume measures: total brain volume, total gray, hippocampal volume, cortical thickness of frontal lobe. The units should be in mm3. Each group determines the starting point and trajectory of each brain measure.
+ 
+Parental Education: 0: less than 12th grade (5.3%), 1: High School or GED (35.4%), 2: Bachelor’s Degree (25.3%), 3: Master’s or higher degree (34%)
+
+Attrition/Missing data: missing timepoints 20%. With release of the key the full data should also include the missing data. Thus the algorithm for generating missing data should be applied after simulated dataset is generated. Finally, release of the key should also include the assumption related to the missing data (i.e. missing at random, missing completely at random, missing not at random).
+
+## Library
+```{r,echo=FALSE}
+library(lavaan)
+library(ggplot2)
+library(purrr)
+library(lubridate)
+library(reshape2)
+library(GGally)
+library(tidyr)
+library(dplyr)
+library(corrplot)
+library(visdat)
+```
+
+
+## Simulating individual brain measures
+```{r,echo=FALSE}
+set.seed(123)
+
+#These simulations are modeled from the HUBU data (accelerated longitudinal dataset between 7 and 22 years old in Denmark)
+#Should be in mm3
+
+# Grey Matter volume
+gmv_sim_basis <- ' 
+i_gmvolume =~ 1*t1_gmv + 1*t2_gmv + 1*t3_gmv + 1*t4_gmv + 1*t5_gmv + 1*t6_gmv + 1*t7_gmv
+s_gmvolume =~ c(0,0)*t1_gmv + c(-0.1,0.1)*t2_gmv + c(-0.2,0.2)*t3_gmv + c(-0.1,0.4)*t4_gmv + c(.3,0.7)*t5_gmv + c(0.7,1.0)*t6_gmv + c(1.2,1.4)*t7_gmv
+
+i_gmvolume ~c(6.25,6.1)*1
+s_gmvolume ~c(-0.45,-0.49)*1
+
+i_gmvolume~~c(0.008,0.007)*i_gmvolume
+s_gmvolume~~c(0.005,0.003)*s_gmvolume
+i_gmvolume~~c(-.0012,-0.0007)*s_gmvolume
+
+t1_gmv~~.01*t1_gmv
+t2_gmv~~.01*t2_gmv
+t3_gmv~~.01*t3_gmv
+t4_gmv~~.01*t4_gmv
+t5_gmv~~.01*t5_gmv
+t6_gmv~~.01*t6_gmv
+t7_gmv~~.01*t7_gmv
+'
+
+simdat_gmv<- simulateData(gmv_sim_basis,sample.nobs=c(5000,5000),meanstructure = T)
+simdat_gmv$id<-as.factor(1:nrow(simdat_gmv))
+
+plotsimdat_gmv<-simdat_gmv
+plotsimdat_gmv[,1:7]<-plotsimdat_gmv[,1:7]*100000 
+plotsimdat_gmv<-melt(plotsimdat_gmv[,c(1:7,ncol(simdat_gmv))],by=id)
+plotsimdat_gmv$sex<-as.factor(rep(simdat_gmv$group,times=7))
+colnames(plotsimdat_gmv)<-c("id","wave","GMV","sex")
+plotsimdat_gmv$wave<-gsub("_gmv","",plotsimdat_gmv$wave)
+levels(plotsimdat_gmv$sex)<-c('Male','Female')
+ggplot(plotsimdat_gmv)+
+  geom_point(aes(wave,GMV,group=id,col=sex))+
+  geom_line(aes(wave,GMV,group=id,col=sex))+
+  ylim(c(480000,700000))
+
+#Fitting the model
+model_gmv_est <- ' 
+i_gmvolume =~ 1*t1_gmv + 1*t2_gmv + 1*t3_gmv + 1*t4_gmv + 1*t5_gmv + 1*t6_gmv + 1*t7_gmv
+s_gmvolume =~ c(0,0)*t1_gmv + c(-0.1,0.1)*t2_gmv + c(-0.2,0.2)*t3_gmv + c(-0.1,0.4)*t4_gmv + c(.3,0.7)*t5_gmv + c(0.7,1.0)*t6_gmv + c(1.2,1.4)*t7_gmv
+
+t1_gmv~~ervar*t1_gmv
+t2_gmv~~ervar*t2_gmv
+t3_gmv~~ervar*t3_gmv
+t4_gmv~~ervar*t4_gmv
+t5_gmv~~ervar*t5_gmv
+t6_gmv~~ervar*t6_gmv
+t7_gmv~~ervar*t7_gmv
+
+'
+fit_model_gmv_est <- growth(model_gmv_est, data=simdat_gmv,estimator="mlr",missing="fiml",group="group")
+summary(fit_model_gmv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+
+#Check the pattern across sex
+gmv_pred <- rbind(predict(fit_model_gmv_est)[[1]],predict(fit_model_gmv_est)[[2]])
+gmv_pred <- as.data.frame(gmv_pred)
+gmv_pred$sex <-c(rep('male',times=nrow(predict(fit_model_gmv_est)[[1]])),rep('female',times=nrow(predict(fit_model_gmv_est)[[2]])))
+
+ggplot(gmv_pred)+
+  geom_point(aes(i_gmvolume,s_gmvolume,col=sex, alpha=0.8))
+
+
+# White Matter volume 
+wmv_sim_quad <- ' 
+
+#basic growth models
+i_wmvolume =~ 1*t1_wmv + 1*t2_wmv + 1*t3_wmv + 1*t4_wmv + 1*t5_wmv + 1*t6_wmv + 1*t7_wmv  
+s_wmvolume =~ 0*t1_wmv + 1*t2_wmv + 2*t3_wmv + 3*t4_wmv + 4*t5_wmv + 5*t6_wmv + 6*t7_wmv 
+q_wmvolume =~ 0*t1_wmv + -1*t2_wmv + -4*t3_wmv + -9*t4_wmv + -16*t5_wmv + -25*t6_wmv + -36*t7_wmv 
+
+#sex differences
+i_wmvolume ~ c(420000,380000)*1 #this specifies the means
+s_wmvolume ~ c(33500,19000)*1   #this specifies the slopes, per wave
+q_wmvolume ~ c(3900,1500)*1   #this specifies the quadratic terms, per wave
+
+#group diffs baseline variance
+i_wmvolume ~~ c(360000000,250000000)*i_wmvolume #this specifies the variance at baseline
+s_wmvolume ~~ c(10700000,10000000)*s_wmvolume  #this specifies the variance in slopes
+q_wmvolume ~~ c(140000,100000)*q_wmvolume  #this specifies the variance in quadratic terms
+i_wmvolume ~~ c(0.01,0.01)*s_wmvolume
+
+t1_wmv~~100000000*t1_wmv
+t2_wmv~~100000000*t2_wmv
+t3_wmv~~100000000*t3_wmv
+t4_wmv~~100000000*t4_wmv
+t5_wmv~~100000000*t5_wmv
+t6_wmv~~100000000*t6_wmv
+t7_wmv~~100000000*t7_wmv
+'
+
+simdat_wmv <- simulateData(wmv_sim_quad,sample.nobs=c(5000,5000),meanstructure = T)
+simdat_wmv$id<-as.factor(1:nrow(simdat_wmv))
+
+plotsimdat_wmv<-melt(simdat_wmv[,c(1:7,ncol(simdat_wmv))],by=id)
+plotsimdat_wmv$sex<-as.factor(rep(simdat_wmv$group,times=7))
+colnames(plotsimdat_wmv)<-c("id","wave","WMV","sex")
+plotsimdat_wmv$wave<-gsub("_wmv","",plotsimdat_wmv$wave)
+levels(plotsimdat_wmv$sex)<-c('Male','Female')
+ggplot(plotsimdat_wmv)+
+  geom_point(aes(wave,WMV,group=id,col=sex))+
+  geom_line(aes(wave,WMV,group=id,col=sex))+
+  ylim(c(300000,600000))
+
+simdat_wmv_scale<-simdat_wmv
+simdat_wmv_scale[,1:7]<-simdat_wmv[,1:7]/100000 
+
+model_wmv_est <- '
+#basic growth models
+i_wmvolume =~ 1*t1_wmv + 1*t2_wmv + 1*t3_wmv + 1*t4_wmv + 1*t5_wmv + 1*t6_wmv + 1*t7_wmv
+s_wmvolume =~ 0*t1_wmv + 1*t2_wmv + 2*t3_wmv + 3*t4_wmv + 4*t5_wmv + 5*t6_wmv + 6*t7_wmv
+q_wmvolume =~ 0*t1_wmv + -1*t2_wmv + -4*t3_wmv + -9*t4_wmv + -16*t5_wmv + -25*t6_wmv + -36*t7_wmv
+
+t1_wmv~~ervar*t1_wmv
+t2_wmv~~ervar*t2_wmv
+t3_wmv~~ervar*t3_wmv
+t4_wmv~~ervar*t4_wmv
+t5_wmv~~ervar*t5_wmv
+t6_wmv~~ervar*t6_wmv
+t7_wmv~~ervar*t7_wmv
+'
+fit_model_wmv_est <- growth(model_wmv_est,data=simdat_wmv_scale,estimator="mlr",missing="fiml") 
+summary(fit_model_wmv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+wmv_pred <- predict(fit_model_wmv_est)
+wmv_pred <- as.data.frame(wmv_pred)
+
+wmv_pred$sex <- simdat_wmv_scale$group
+wmv_pred$sex <- as.factor(wmv_pred$sex)
+ggplot(wmv_pred)+
+  geom_point(aes(i_wmvolume,s_wmvolume,col=sex, alpha=0.8))
+
+
+# Intracranial Volume
+set.seed(123)
+
+icv_sim_quad <- ' 
+
+#basic growth models
+i_icvolume =~ 1*t1_icv + 1*t2_icv + 1*t3_icv + 1*t4_icv + 1*t5_icv + 1*t6_icv + 1*t7_icv  
+s_icvolume =~ 0*t1_icv + 1*t2_icv + 2*t3_icv + 3*t4_icv + 4*t5_icv + 5*t6_icv + 6*t7_icv 
+q_icvolume =~ 0*t1_icv + -1*t2_icv + -4*t3_icv + -9*t4_icv + -16*t5_icv + -25*t6_icv + -36*t7_icv 
+
+#sex differences
+i_icvolume ~ c(1070000,990000)*1 #this specifies the means
+s_icvolume ~ c(40000,12000)*1   #this specifies the slopes, per wave
+q_icvolume ~ c(7000,3200)*1   #this specifies the quadratic terms, per wave
+
+#group diffs baseline variance
+i_icvolume ~~ c(700000000,300000000)*i_icvolume #this specifies the variance at baseline
+s_icvolume ~~ c(8000000,2000000)*s_icvolume  #this specifies the variance in slopes
+q_icvolume ~~ c(1000000,200000)*q_icvolume  #this specifies the variance in quadratic terms
+i_icvolume ~~ -0.00001*s_icvolume
+
+t1_icv~~1000000000*t1_icv
+t2_icv~~1000000000*t2_icv
+t3_icv~~1000000000*t3_icv
+t4_icv~~1000000000*t4_icv
+t5_icv~~1000000000*t5_icv
+t6_icv~~1000000000*t6_icv
+t7_icv~~1000000000*t7_icv
+'
+
+simdat_icv <- simulateData(icv_sim_quad,sample.nobs=c(5000,5000),meanstructure = T)
+simdat_icv$id<-as.factor(1:nrow(simdat_icv))
+
+plotsimdat_icv<-melt(simdat_icv[,c(1:7,ncol(simdat_icv))],by=id)
+plotsimdat_icv$sex<-as.factor(rep(simdat_icv$group,times=7))
+colnames(plotsimdat_icv)<-c("id","wave","ICV","sex")
+plotsimdat_icv$wave<-gsub("_icv","",plotsimdat_icv$wave)
+levels(plotsimdat_icv$sex)<-c('Male','Female')
+ggplot(plotsimdat_icv)+
+  geom_point(aes(wave,ICV,group=id,col=sex))+
+  geom_line(aes(wave,ICV,group=id,col=sex))+
+  ylim(c(800000,1300000))
+
+simdat_icv_scale<-simdat_icv
+simdat_icv_scale[,1:7]<-simdat_icv[,1:7]/100000 
+
+model_icv_est <- '
+#basic growth models
+i_icvolume =~ 1*t1_icv + 1*t2_icv + 1*t3_icv + 1*t4_icv + 1*t5_icv + 1*t6_icv + 1*t7_icv  
+s_icvolume =~ 0*t1_icv + 1*t2_icv + 2*t3_icv + 3*t4_icv + 4*t5_icv + 5*t6_icv + 6*t7_icv 
+q_icvolume =~ 0*t1_icv + -1*t2_icv + -4*t3_icv + -9*t4_icv + -16*t5_icv + -25*t6_icv + -36*t7_icv 
+
+t1_icv~~ervar*t1_icv
+t2_icv~~ervar*t2_icv
+t3_icv~~ervar*t3_icv
+t4_icv~~ervar*t4_icv
+t5_icv~~ervar*t5_icv
+t6_icv~~ervar*t6_icv
+t7_icv~~ervar*t7_icv
+'
+fit_model_icv_est <- growth(model_icv_est,data=simdat_icv_scale,estimator="mlr",missing="fiml")
+summary(fit_model_icv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+
+icv_pred <- predict(fit_model_icv_est)
+icv_pred <- as.data.frame(icv_pred)
+
+icv_pred$sex <- simdat_icv_scale$group
+icv_pred$sex <- as.factor(icv_pred$sex)
+
+ggplot(icv_pred)+
+  geom_point(aes(i_icvolume,s_icvolume,col=sex, alpha=0.8))
+
+
+# Hippocampus Volume
+
+set.seed(123)
+hippv_sim_basis <- ' 
+#basic growth models
+i_hippvolume =~ 1*t1_hippv + 1*t2_hippv + 1*t3_hippv + 1*t4_hippv + 1*t5_hippv + 1*t6_hippv + 1*t7_hippv  
+s_hippvolume =~ 0*t1_hippv + 2*t2_hippv + 4.5*t3_hippv + 6*t4_hippv + 6.5*t5_hippv + 6*t6_hippv + 5.2*t7_hippv 
+
+i_hippvolume~c(8.4,8.3)*1
+s_hippvolume~c(0.08,0.06)*1
+
+i_hippvolume~~c(0.005,0.005)*i_hippvolume
+s_hippvolume~~c(0.0001,0.0001)*s_hippvolume
+i_hippvolume~~c(-0.0001,-0.0001)*s_hippvolume
+
+t1_hippv~~0.01*t1_hippv
+t2_hippv~~0.01*t2_hippv
+t3_hippv~~0.01*t3_hippv
+t4_hippv~~0.01*t4_hippv
+t5_hippv~~0.01*t5_hippv
+t6_hippv~~0.01*t6_hippv
+t7_hippv~~0.01*t7_hippv
+
+'
+
+simdat_hippv <- simulateData(hippv_sim_basis,sample.nobs=c(5000,5000),meanstructure = T)
+simdat_hippv$id<-as.factor(1:nrow(simdat_hippv))
+
+plotsimdat_hippv<-simdat_hippv
+plotsimdat_hippv[,1:7]<-plotsimdat_hippv[,1:7]*1000
+
+plotsimdat_hippv<-melt(plotsimdat_hippv[,c(1:7,ncol(plotsimdat_hippv))],by=id)
+plotsimdat_hippv$sex<-as.factor(rep(simdat_hippv$group,times=7))
+colnames(plotsimdat_hippv)<-c("id","wave","Hippv","sex")
+plotsimdat_hippv$wave<-gsub("_hippv","",plotsimdat_hippv$wave)
+levels(plotsimdat_hippv$sex)<-c('Male','Female')
+ggplot(plotsimdat_hippv)+
+  geom_point(aes(wave,Hippv,group=id,col=sex))+
+  geom_line(aes(wave,Hippv,group=id,col=sex))+
+  ylim(c(7000,11000))
+
+model_hippv_est <- '
+#basic growth models
+i_hippvolume =~ 1*t1_hippv + 1*t2_hippv + 1*t3_hippv + 1*t4_hippv + 1*t5_hippv + 1*t6_hippv + 1*t7_hippv  
+s_hippvolume =~ 0*t1_hippv + 2*t2_hippv + 4.5*t3_hippv + 6*t4_hippv + 6.5*t5_hippv + 6*t6_hippv + 5.2*t7_hippv 
+
+t1_hippv~~ervar*t1_hippv
+t2_hippv~~ervar*t2_hippv
+t3_hippv~~ervar*t3_hippv
+t4_hippv~~ervar*t4_hippv
+t5_hippv~~ervar*t5_hippv
+t6_hippv~~ervar*t6_hippv
+t7_hippv~~ervar*t7_hippv
+
+'
+fit_model_hippv_est <- growth(model_hippv_est,data=simdat_hippv,estimator="mlr",missing="fiml", group="group")
+summary(fit_model_hippv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+hippv_pred <- rbind(predict(fit_model_hippv_est)[[1]],predict(fit_model_hippv_est)[[2]])
+hippv_pred <- as.data.frame(hippv_pred)
+
+hippv_pred$sex <- simdat_hippv$group
+hippv_pred$sex <- as.factor(hippv_pred$sex)
+ggplot(hippv_pred)+
+  geom_point(aes(i_hippvolume,s_hippvolume,col=sex, alpha=0.8))
+
+
+# Amygdala Volume.
+amgv_sim_quad <- ' 
+
+#basic growth models
+i_amgvolume =~ 1*t1_amgv + 1*t2_amgv + 1*t3_amgv + 1*t4_amgv + 1*t5_amgv + 1*t6_amgv + 1*t7_amgv  
+s_amgvolume =~ 0*t1_amgv + 1*t2_amgv + 2*t3_amgv + 3*t4_amgv + 4*t5_amgv + 5*t6_amgv + 6*t7_amgv 
+q_amgvolume =~ 0*t1_amgv + -1*t2_amgv + -4*t3_amgv + -9*t4_amgv + -16*t5_amgv + -25*t6_amgv + -36*t7_amgv 
+
+#sex differences
+i_amgvolume ~ c(3700,3600)*1 #this specifies the means #@ made more similar
+s_amgvolume ~ c(110,105)*1   #this specifies the slopes, per wave
+q_amgvolume ~ c(18,15)*1   #this specifies the quadratic terms, per wave #@ made more similar
+
+#group diffs baseline variance
+i_amgvolume ~~ c(300,280)*i_amgvolume #this specifies the variance at baseline 
+s_amgvolume ~~ c(20,20)*s_amgvolume  #this specifies the variance in slopes
+q_amgvolume ~~ c(5,5)*q_amgvolume  #this specifies the variance in quadratic terms #@ made the same (I dont trust quad variances)
+
+s_amgvolume ~~ c(0.0000000006 ,0.0000000003 )*i_amgvolume  #this specifies the variance in slopes
+q_amgvolume ~~ c(0.0000000006 ,0.0000000003 )*s_amgvolume  #this specifies the variance in quad
+q_amgvolume ~~ c(0.0000000006 ,0.0000000003 )*i_amgvolume  #this specifies the variance in quad
+
+t1_amgv~~10000*t1_amgv
+t2_amgv~~10000*t2_amgv
+t3_amgv~~10000*t3_amgv
+t4_amgv~~10000*t4_amgv
+t5_amgv~~10000*t5_amgv
+t6_amgv~~10000*t6_amgv
+t7_amgv~~10000*t7_amgv
+'
+
+simdat_amgv <- simulateData(amgv_sim_quad,sample.nobs=c(5000,5000),meanstructure = T)
+simdat_amgv$id<-as.factor(1:nrow(simdat_amgv))
+
+plotsimdat_amgv<-melt(simdat_amgv[,c(1:7,ncol(simdat_amgv))],by=id)
+plotsimdat_amgv$sex<-as.factor(rep(simdat_amgv$group,times=7))
+colnames(plotsimdat_amgv)<-c("id","wave","Amgv","sex")
+plotsimdat_amgv$wave<-gsub("_amgv","",plotsimdat_amgv$wave)
+levels(plotsimdat_amgv$sex)<-c('Male','Female')
+ggplot(plotsimdat_amgv)+
+  geom_point(aes(wave,Amgv,group=id,col=sex,alpha=.7))+
+  geom_line(aes(wave,Amgv,group=id,col=sex,alpha=.7))+
+  ylim(c(2500,4500))
+
+simdat_amgv_scale<-simdat_amgv
+simdat_amgv_scale[,1:7]<-simdat_amgv[,1:7]/1000
+
+model_amgv_est <- '
+#basic growth models
+i_amgvolume =~ 1*t1_amgv + 1*t2_amgv + 1*t3_amgv + 1*t4_amgv + 1*t5_amgv + 1*t6_amgv + 1*t7_amgv
+s_amgvolume =~ 0*t1_amgv + c(fl1,fl1)*t2_amgv + c(fl2,fl2)*t3_amgv + c(fl3,fl3)*t4_amgv + c(fl4,fl4)*t5_amgv + c(fl5,fl5)*t6_amgv + 1*t7_amgv 
+
+t1_amgv~~ervar*t1_amgv
+t2_amgv~~ervar*t2_amgv
+t3_amgv~~ervar*t3_amgv
+t4_amgv~~ervar*t4_amgv
+t5_amgv~~ervar*t5_amgv
+t6_amgv~~ervar*t6_amgv
+t7_amgv~~ervar*t7_amgv
+
+i_amgvolume~~0*s_amgvolume #fixed
+
+'
+fit_model_amgv_est <- growth(model_amgv_est,data=simdat_amgv_scale,estimator="mlr",missing="fiml",group="group")
+summary(fit_model_amgv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+amgv_pred <- rbind(predict(fit_model_amgv_est)[[1]],predict(fit_model_amgv_est)[[2]])
+amgv_pred <- as.data.frame(amgv_pred)
+
+amgv_pred$sex <- simdat_amgv_scale$group
+amgv_pred$sex <- as.factor(amgv_pred$sex)
+ggplot(amgv_pred)+
+  geom_point(aes(i_amgvolume,s_amgvolume,col=sex, alpha=0.8))
+#The amygdala was difficult to simulate
+
+
+# Frontal Cortical Thickness
+set.seed(4242)
+ctfrontal_sim_basis <- '
+#basic growth models
+i_ctfrontal =~ 1*t1_ct + 1*t2_ct + 1*t3_ct + 1*t4_ct + 1*t5_ct + 1*t6_ct + 1*t7_ct
+s_ctfrontal =~ 3*t1_ct + 3.005*t2_ct + 2.97*t3_ct + 2.95*t4_ct + 2.88*t5_ct + 2.83*t6_ct + 2.8*t7_ct
+
+#sex differences
+i_ctfrontal ~ c(0.87,0.96)*1 #this specifies the means
+s_ctfrontal ~ c(.705,.695)*1   #this specifies the slopes, per wave
+
+#group diffs baseline variance
+i_ctfrontal ~~ c(0.0002,0.0002)*i_ctfrontal #this specifies the variance at baseline
+s_ctfrontal ~~ c(0.00001,0.00001)*s_ctfrontal  #this specifies the variance in slopes
+s_ctfrontal ~~ c(-0.000000005,-0.000000005)*i_ctfrontal  #this specifies the covariance in intercepts and slopes. need to set to tiny values that works out as <1
+
+t1_ct~~0.0008*t1_ct
+t2_ct~~0.0008*t2_ct
+t3_ct~~0.0008*t3_ct
+t4_ct~~0.0008*t4_ct
+t5_ct~~0.0008*t5_ct
+t6_ct~~0.0008*t6_ct
+t7_ct~~0.0008*t7_ct
+'
+
+simdat_ct <- simulateData(ctfrontal_sim_basis,sample.nobs=c(5000,5000),meanstructure = T)
+simdat_ct$id<-as.factor(1:nrow(simdat_ct))
+
+plotsimdat_ct<-melt(simdat_ct[,c(1:7,ncol(simdat_ct))],by=id)
+plotsimdat_ct$sex<-as.factor(rep(simdat_ct$group,times=7))
+colnames(plotsimdat_ct)<-c("id","wave","CT","sex")
+plotsimdat_ct$wave<-gsub("_ct","",plotsimdat_ct$wave)
+levels(plotsimdat_ct$sex)<-c('Male','Female')
+ggplot(plotsimdat_ct)+
+  geom_point(aes(wave,CT,group=id,col=sex),alpha=0.7)+
+  geom_line(aes(wave,CT,group=id,col=sex),alpha=0.7)+
+  ylim(c(2.6,3.2))
+
+ctfrontal_model_quad_est <- '
+#basic growth models
+i_ctfrontal =~ 1*t1_ct + 1*t2_ct + 1*t3_ct + 1*t4_ct + 1*t5_ct + 1*t6_ct + 1*t7_ct
+s_ctfrontal =~ 0*t1_ct + t2_ct + t3_ct + t4_ct + t5_ct + t6_ct + 1*t7_ct
+
+t1_ct~~ervar*t1_ct
+t2_ct~~ervar*t2_ct
+t3_ct~~ervar*t3_ct
+t4_ct~~ervar*t4_ct
+t5_ct~~ervar*t5_ct
+t6_ct~~ervar*t6_ct
+t7_ct~~ervar*t7_ct
+ # i_ctfrontal~~0*i_ctfrontal
+ # s_ctfrontal~~0*s_ctfrontal
+ # i_ctfrontal~~0*s_ctfrontal
+
+'
+fit_ctfrontal_model_quad_est <- growth(ctfrontal_model_quad_est,data=simdat_ct,estimator="mlr",missing="fiml",group="group")
+summary(fit_ctfrontal_model_quad_est, fit.measures=TRUE,rsquare=T,standardized=T)
+
+ct_pred <- rbind(predict(fit_ctfrontal_model_quad_est)[[1]],predict(fit_ctfrontal_model_quad_est)[[2]])
+ct_pred <- as.data.frame(ct_pred)
+ct_pred$sex <-c(rep('male',times=nrow(predict(fit_ctfrontal_model_quad_est)[[1]])),rep('female',times=nrow(predict(fit_ctfrontal_model_quad_est)[[2]])))
+ct_pred$sex <- as.factor(ct_pred$sex)
+ggplot(ct_pred)+
+  geom_point(aes(i_ctfrontal,s_ctfrontal,col=sex), alpha=0.8) 
+
+```
+
+
+## Simulate regions together
+```{r,echo=FALSE}
+
+#Simulate 30,000 individuals and then separate it into three datasets
+
+set.seed(1234)
+brain_model <- ' 
+
+#basic growth models
+i_gmvolume =~ 1*t1_gmv + 1*t2_gmv + 1*t3_gmv + 1*t4_gmv + 1*t5_gmv + 1*t6_gmv + 1*t7_gmv
+s_gmvolume =~ c(0,0)*t1_gmv + c(-0.1,0.1)*t2_gmv + c(-0.2,0.2)*t3_gmv + c(-0.1,0.4)*t4_gmv + c(.3,0.7)*t5_gmv + c(0.7,1.0)*t6_gmv + c(1.2,1.4)*t7_gmv
+
+i_wmvolume =~ 1*t1_wmv + 1*t2_wmv + 1*t3_wmv + 1*t4_wmv + 1*t5_wmv + 1*t6_wmv + 1*t7_wmv  
+s_wmvolume =~ 0*t1_wmv + 1*t2_wmv + 2*t3_wmv + 3*t4_wmv + 4*t5_wmv + 5*t6_wmv + 6*t7_wmv 
+q_wmvolume =~ 0*t1_wmv + -1*t2_wmv + -4*t3_wmv + -9*t4_wmv + -16*t5_wmv + -25*t6_wmv + -36*t7_wmv 
+
+#basic growth models
+i_icvolume =~ 1*t1_icv + 1*t2_icv + 1*t3_icv + 1*t4_icv + 1*t5_icv + 1*t6_icv + 1*t7_icv  
+s_icvolume =~ 0*t1_icv + 1*t2_icv + 2*t3_icv + 3*t4_icv + 4*t5_icv + 5*t6_icv + 6*t7_icv 
+q_icvolume =~ 0*t1_icv + -1*t2_icv + -4*t3_icv + -9*t4_icv + -16*t5_icv + -25*t6_icv + -36*t7_icv 
+
+i_hippvolume =~ 1*t1_hippv + 1*t2_hippv + 1*t3_hippv + 1*t4_hippv + 1*t5_hippv + 1*t6_hippv + 1*t7_hippv  
+s_hippvolume =~ 0*t1_hippv + 2*t2_hippv + 4.5*t3_hippv + 6*t4_hippv + 6.5*t5_hippv + 6*t6_hippv + 5.2*t7_hippv 
+
+i_amgvolume =~ 1*t1_amgv + 1*t2_amgv + 1*t3_amgv + 1*t4_amgv + 1*t5_amgv + 1*t6_amgv + 1*t7_amgv  
+s_amgvolume =~ 0*t1_amgv + 1*t2_amgv + 2*t3_amgv + 3*t4_amgv + 4*t5_amgv + 5*t6_amgv + 6*t7_amgv 
+q_amgvolume =~ 0*t1_amgv + -1*t2_amgv + -4*t3_amgv + -9*t4_amgv + -16*t5_amgv + -25*t6_amgv + -36*t7_amgv 
+
+i_ctfrontal =~ 1*t1_ct + 1*t2_ct + 1*t3_ct + 1*t4_ct + 1*t5_ct + 1*t6_ct + 1*t7_ct
+s_ctfrontal =~ 3*t1_ct + 3.005*t2_ct + 2.97*t3_ct + 2.95*t4_ct + 2.88*t5_ct + 2.83*t6_ct + 2.8*t7_ct
+
+#sex differences
+i_gmvolume ~c(6.25,6.1)*1
+s_gmvolume ~c(-0.45,-0.5)*1
+
+i_wmvolume ~ c(420000,380000)*1 #this specifies the means
+s_wmvolume ~ c(33500,19000)*1   #this specifies the slopes, per wave
+q_wmvolume ~ c(3900,1500)*1   #this specifies the quadratic terms, per wave
+
+i_icvolume ~ c(1070000,990000)*1 #this specifies the means
+s_icvolume ~ c(40000,12000)*1   #this specifies the slopes, per wave
+q_icvolume ~ c(7000,3200)*1   #this specifies the quadratic terms, per wave
+
+i_hippvolume~c(8.4,8.3)*1
+s_hippvolume~c(0.08,0.06)*1
+
+i_amgvolume ~ c(3700,3600)*1 #this specifies the means #@ made more similar
+s_amgvolume ~ c(110,105)*1   #this specifies the slopes, per wave
+q_amgvolume ~ c(18,15)*1   #this specifies the quadratic terms, per wave #@ made more similar
+
+i_ctfrontal ~ c(0.87,0.96)*1 #this specifies the means
+s_ctfrontal ~ c(.705,.695)*1   #this specifies the slopes, per wave
+
+#group diffs baseline variance
+i_gmvolume~~c(0.008,0.007)*i_gmvolume
+s_gmvolume~~c(0.0005,0.0003)*s_gmvolume
+i_gmvolume~~c(-.0012,-0.0007)*s_gmvolume
+
+i_wmvolume ~~ c(360000000,250000000)*i_wmvolume #this specifies the variance at baseline
+s_wmvolume ~~ c(10700000,10000000)*s_wmvolume  #this specifies the variance in slopes
+q_wmvolume ~~ c(140000,100000)*q_wmvolume  #this specifies the variance in quadratic terms
+i_wmvolume ~~ c(0.01,0.01)*s_wmvolume
+
+i_icvolume ~~ c(700000000,300000000)*i_icvolume #this specifies the variance at baseline
+s_icvolume ~~ c(8000000,2000000)*s_icvolume  #this specifies the variance in slopes
+q_icvolume ~~ c(1000000,200000)*q_icvolume  #this specifies the variance in quadratic terms
+i_icvolume ~~ -0.00001*s_icvolume
+
+i_hippvolume~~c(0.005,0.005)*i_hippvolume
+s_hippvolume~~c(0.0001,0.0001)*s_hippvolume
+i_hippvolume~~c(-0.0001,-0.0001)*s_hippvolume
+
+i_amgvolume ~~ c(300,280)*i_amgvolume #this specifies the variance at baseline 
+s_amgvolume ~~ c(20,20)*s_amgvolume  #this specifies the variance in slopes
+q_amgvolume ~~ c(5,5)*q_amgvolume  #this specifies the variance in quadratic terms #@ made the same (I dont trust quad variances)
+
+s_amgvolume ~~ c(0.0000000006 ,0.0000000003 )*i_amgvolume  #this specifies the variance in slopes
+q_amgvolume ~~ c(0.0000000006 ,0.0000000003 )*s_amgvolume  #this specifies the variance in quad
+q_amgvolume ~~ c(0.0000000006 ,0.0000000003 )*i_amgvolume  #this specifies the variance in quad
+
+i_ctfrontal ~~ c(0.0002,0.0002)*i_ctfrontal #this specifies the variance at baseline
+s_ctfrontal ~~ c(0.00001,0.00001)*s_ctfrontal  #this specifies the variance in slopes
+s_ctfrontal ~~ c(-0.000000005,-0.000000005)*i_ctfrontal  #this specifies the covariance in intercepts and slopes. need to set to tiny values that works out as <1
+
+t1_gmv~~.01*t1_gmv
+t2_gmv~~.01*t2_gmv
+t3_gmv~~.01*t3_gmv
+t4_gmv~~.01*t4_gmv
+t5_gmv~~.01*t5_gmv
+t6_gmv~~.01*t6_gmv
+t7_gmv~~.01*t7_gmv
+
+t1_wmv~~100000000*t1_wmv
+t2_wmv~~100000000*t2_wmv
+t3_wmv~~100000000*t3_wmv
+t4_wmv~~100000000*t4_wmv
+t5_wmv~~100000000*t5_wmv
+t6_wmv~~100000000*t6_wmv
+t7_wmv~~100000000*t7_wmv
+
+t1_icv~~1000000000*t1_icv
+t2_icv~~1000000000*t2_icv
+t3_icv~~1000000000*t3_icv
+t4_icv~~1000000000*t4_icv
+t5_icv~~1000000000*t5_icv
+t6_icv~~1000000000*t6_icv
+t7_icv~~1000000000*t7_icv
+
+t1_hippv~~0.01*t1_hippv
+t2_hippv~~0.01*t2_hippv
+t3_hippv~~0.01*t3_hippv
+t4_hippv~~0.01*t4_hippv
+t5_hippv~~0.01*t5_hippv
+t6_hippv~~0.01*t6_hippv
+t7_hippv~~0.01*t7_hippv
+
+t1_amgv~~10000*t1_amgv
+t2_amgv~~10000*t2_amgv
+t3_amgv~~10000*t3_amgv
+t4_amgv~~10000*t4_amgv
+t5_amgv~~10000*t5_amgv
+t6_amgv~~10000*t6_amgv
+t7_amgv~~10000*t7_amgv
+
+t1_ct~~0.0008*t1_ct
+t2_ct~~0.0008*t2_ct
+t3_ct~~0.0008*t3_ct
+t4_ct~~0.0008*t4_ct
+t5_ct~~0.0008*t5_ct
+t6_ct~~0.0008*t6_ct
+t7_ct~~0.0008*t7_ct
+
+'
+
+simdat_brain <- simulateData(brain_model,sample.nobs=c(15000,15000),meanstructure = T)
+simdat_brain$id<-as.factor(1:nrow(simdat_brain))
+simdat_brain[,1:7]<-simdat_brain[,1:7]*100000
+simdat_brain[,22:28]<-simdat_brain[,22:28]*1000
+
+simdat_brain_scale<-simdat_brain[,1:44]
+simdat_brain_scale[1:21]<- simdat_brain_scale[1:21]/100000
+simdat_brain_scale[22:35]<- simdat_brain_scale[22:35]/1000 
+
+
+#Fit the region one by one
+#Extract the intercepts and slopes
+
+model_gmv_est <- ' 
+i_gmvolume =~ 1*t1_gmv + 1*t2_gmv + 1*t3_gmv + 1*t4_gmv + 1*t5_gmv + 1*t6_gmv + 1*t7_gmv
+s_gmvolume =~ c(0,0)*t1_gmv + c(-0.1,0.1)*t2_gmv + c(-0.2,0.2)*t3_gmv + c(-0.1,0.4)*t4_gmv + c(.3,0.7)*t5_gmv + c(0.7,1.0)*t6_gmv + c(1.2,1.4)*t7_gmv
+
+t1_gmv~~ervar*t1_gmv
+t2_gmv~~ervar*t2_gmv
+t3_gmv~~ervar*t3_gmv
+t4_gmv~~ervar*t4_gmv
+t5_gmv~~ervar*t5_gmv
+t6_gmv~~ervar*t6_gmv
+t7_gmv~~ervar*t7_gmv
+'
+fit_model_gmv_est <- growth(model_gmv_est, data=simdat_brain_scale,estimator="mlr",missing="fiml",group="group")
+summary(fit_model_gmv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+gmv_pred <- rbind(predict(fit_model_gmv_est)[[1]],predict(fit_model_gmv_est)[[2]])
+gmv_pred <- as.data.frame(gmv_pred)
+
+gmv_pred$sex <-c(rep('male',times=nrow(predict(fit_model_gmv_est)[[1]])),rep('female',times=nrow(predict(fit_model_gmv_est)[[2]])))
+
+ggplot(gmv_pred)+
+  geom_point(aes(i_gmvolume,s_gmvolume,col=sex, alpha=0.8))
+
+
+model_wmv_est <- '
+#basic growth models
+i_wmvolume =~ 1*t1_wmv + 1*t2_wmv + 1*t3_wmv + 1*t4_wmv + 1*t5_wmv + 1*t6_wmv + 1*t7_wmv
+s_wmvolume =~ 0*t1_wmv + 1*t2_wmv + 2*t3_wmv + 3*t4_wmv + 4*t5_wmv + 5*t6_wmv + 6*t7_wmv
+q_wmvolume =~ 0*t1_wmv + -1*t2_wmv + -4*t3_wmv + -9*t4_wmv + -16*t5_wmv + -25*t6_wmv + -36*t7_wmv
+
+t1_wmv~~ervar*t1_wmv
+t2_wmv~~ervar*t2_wmv
+t3_wmv~~ervar*t3_wmv
+t4_wmv~~ervar*t4_wmv
+t5_wmv~~ervar*t5_wmv
+t6_wmv~~ervar*t6_wmv
+t7_wmv~~ervar*t7_wmv
+'
+fit_model_wmv_est <- growth(model_wmv_est,data=simdat_brain_scale,estimator="mlr",missing="fiml")
+summary(fit_model_wmv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+wmv_pred <- predict(fit_model_wmv_est)
+wmv_pred <- as.data.frame(wmv_pred)
+
+wmv_pred$sex <- simdat_brain$group
+wmv_pred$sex <- as.factor(wmv_pred$sex)
+ggplot(wmv_pred)+
+  geom_point(aes(i_wmvolume,s_wmvolume,col=sex, alpha=0.8))
+
+
+model_icv_est <- '
+#basic growth models
+i_icvolume =~ 1*t1_icv + 1*t2_icv + 1*t3_icv + 1*t4_icv + 1*t5_icv + 1*t6_icv + 1*t7_icv
+s_icvolume =~ 0*t1_icv + t2_icv + t3_icv + t4_icv + t5_icv + t6_icv + 1*t7_icv
+
+t1_icv~~ervar*t1_icv
+t2_icv~~ervar*t2_icv
+t3_icv~~ervar*t3_icv
+t4_icv~~ervar*t4_icv
+t5_icv~~ervar*t5_icv
+t6_icv~~ervar*t6_icv
+t7_icv~~ervar*t7_icv
+'
+fit_model_icv_est <- growth(model_icv_est,data=simdat_brain_scale,estimator="mlr",missing="fiml")
+summary(fit_model_icv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+icv_pred <- predict(fit_model_icv_est)
+icv_pred <- as.data.frame(icv_pred)
+icv_pred$sex <- simdat_brain$group
+icv_pred$sex <- as.factor(icv_pred$sex)
+
+ggplot(icv_pred)+
+  geom_point(aes(i_icvolume,s_icvolume,col=sex, alpha=0.8))
+
+
+model_hippv_est <- '
+#basic growth models
+i_hippvolume =~ 1*t1_hippv + 1*t2_hippv + 1*t3_hippv + 1*t4_hippv + 1*t5_hippv + 1*t6_hippv + 1*t7_hippv
+s_hippvolume =~ 0*t1_hippv + t2_hippv + t3_hippv + t4_hippv + t5_hippv + t6_hippv + 1*t7_hippv
+
+t1_hippv~~ervar*t1_hippv
+t2_hippv~~ervar*t2_hippv
+t3_hippv~~ervar*t3_hippv
+t4_hippv~~ervar*t4_hippv
+t5_hippv~~ervar*t5_hippv
+t6_hippv~~ervar*t6_hippv
+t7_hippv~~ervar*t7_hippv
+
+'
+fit_model_hippv_est <- growth(model_hippv_est,data=simdat_brain_scale,estimator="mlr",missing="fiml", group="group")
+summary(fit_model_hippv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+hippv_pred <- rbind(predict(fit_model_hippv_est)[[1]],predict(fit_model_hippv_est)[[2]])
+hippv_pred <- as.data.frame(hippv_pred)
+
+hippv_pred$sex <- simdat_brain$group
+hippv_pred$sex <- as.factor(hippv_pred$sex)
+ggplot(hippv_pred)+
+  geom_point(aes(i_hippvolume,s_hippvolume,col=sex, alpha=0.8))
+
+
+model_amgv_est <- '
+#basic growth models
+i_amgvolume =~ 1*t1_amgv + 1*t2_amgv + 1*t3_amgv + 1*t4_amgv + 1*t5_amgv + 1*t6_amgv + 1*t7_amgv
+s_amgvolume =~ 0*t1_amgv + c(fl1,fl1)*t2_amgv + c(fl2,fl2)*t3_amgv + c(fl3,fl3)*t4_amgv + c(fl4,fl4)*t5_amgv + c(fl5,fl5)*t6_amgv + 1*t7_amgv #@ equality constrained loadings for the slope
+
+t1_amgv~~ervar*t1_amgv
+t2_amgv~~ervar*t2_amgv
+t3_amgv~~ervar*t3_amgv
+t4_amgv~~ervar*t4_amgv
+t5_amgv~~ervar*t5_amgv
+t6_amgv~~ervar*t6_amgv
+t7_amgv~~ervar*t7_amgv
+
+#s_amgvolume~~s_amgvolume #fixed
+i_amgvolume~~0*s_amgvolume #fixed
+
+'
+fit_model_amgv_est <- growth(model_amgv_est,data=simdat_brain_scale,estimator="mlr",missing="fiml",group="group")
+summary(fit_model_amgv_est, fit.measures=TRUE,rsquare=T,standardized=T)
+amgv_pred <- rbind(predict(fit_model_amgv_est)[[1]],predict(fit_model_amgv_est)[[2]])
+amgv_pred <- as.data.frame(amgv_pred)
+
+amgv_pred$sex <- simdat_brain_scale$group
+amgv_pred$sex <- as.factor(amgv_pred$sex)
+ggplot(amgv_pred)+
+  geom_point(aes(i_amgvolume,s_amgvolume,col=sex, alpha=0.8))
+
+
+ctfrontal_model_est <- '
+#basic growth models
+i_ctfrontal =~ 1*t1_ct + 1*t2_ct + 1*t3_ct + 1*t4_ct + 1*t5_ct + 1*t6_ct + 1*t7_ct
+s_ctfrontal =~ 0*t1_ct + c(fl1,fl1)*t2_ct + c(fl2,fl2)*t3_ct + c(fl3,fl3)*t4_ct + c(fl4,fl4)*t5_ct + c(fl5,fl5)*t6_ct + 1*t7_ct #@ equality constrained
+
+t1_ct~~ervar*t1_ct
+t2_ct~~ervar*t2_ct
+t3_ct~~ervar*t3_ct
+t4_ct~~ervar*t4_ct
+t5_ct~~ervar*t5_ct
+t6_ct~~ervar*t6_ct
+t7_ct~~ervar*t7_ct
+ # i_ctfrontal~~0*i_ctfrontal
+  s_ctfrontal~~c(svar,svar)*s_ctfrontal #@ for some reason, if we dont  equality constrain these, one of the groups gets slightly negative variances. If you equality constrain (in line with the sim) the values are all pos, the group diffs look normal and errors go away
+  # i_ctfrontal~~0*s_ctfrontal
+
+'
+fit_model_ctfrontal_est <- growth(ctfrontal_model_est,data=simdat_brain_scale,estimator="mlr",missing="fiml",group="group")
+summary(fit_model_ctfrontal_est, fit.measures=TRUE,rsquare=T,standardized=T)
+
+ct_pred <- rbind(predict(fit_model_ctfrontal_est)[[1]],predict(fit_model_ctfrontal_est)[[2]])
+ct_pred <- as.data.frame(ct_pred)
+ct_pred$sex <-c(rep('male',times=nrow(predict(fit_model_ctfrontal_est)[[1]])),rep('female',times=nrow(predict(fit_model_ctfrontal_est)[[2]])))
+ct_pred$sex <- as.factor(ct_pred$sex)
+ggplot(ct_pred)+
+  geom_point(aes(i_ctfrontal,s_ctfrontal,col=sex), alpha=0.8) 
+
+
+#Correlation matrix with the brain measures
+brain_predict<-cbind(gmv_pred,wmv_pred)
+brain_predict<-cbind(brain_predict,icv_pred)
+brain_predict<-cbind(brain_predict,hippv_pred)
+brain_predict<-cbind(brain_predict,amgv_pred)
+brain_predict<-cbind(brain_predict,ct_pred)
+
+
+col_order<-c("i_icvolume","s_icvolume","i_hippvolume","s_hippvolume","i_amgvolume","s_amgvolume","i_gmvolume","s_gmvolume","i_wmvolume","s_wmvolume","q_wmvolume","i_ctfrontal","s_ctfrontal" )
+brain_predict<-brain_predict[,col_order]
+
+cor_brain <- cor(brain_predict[,c(1:10,12:13)])
+corrplot(cor_brain)
+
+```
+
+
+## Add covariates
+```{r,echo=FALSE}
+
+####Parental education####
+set.seed(123)
+simdat_brain_scale$parental_education <- 20*simdat_brain_scale$t1_gmv+15*simdat_brain_scale$t1_wmv+20*simdat_brain_scale$t1_icv+15*simdat_brain_scale$t1_hippv+10*simdat_brain_scale$t1_amgv+10*simdat_brain_scale$t1_ct+rnorm(10000, mean = 100, sd = 85)
+
+#Transform the distribution
+simdat_brain_scale <- simdat_brain_scale %>% 
+  mutate_at(vars(parental_education), function(x) scale(x)*1 + 10)
+
+simdat_brain_scale <- simdat_brain_scale %>%
+  mutate(parental_education= case_when( parental_education >=10.4 ~ 3,
+             parental_education >=9.75 & parental_education <10.4 ~ 2,
+             parental_education >=8.4 & parental_education <9.75 ~ 1,
+             parental_education <8.4 ~ 0))
+
+table(simdat_brain_scale$parental_education)
+
+
+####IQ####
+simdat_brain_scale$t1_iq<- 5*simdat_brain_scale$t1_gmv+4*simdat_brain_scale$t1_wmv+5*simdat_brain_scale$t1_icv+3*simdat_brain_scale$t1_hippv+2*simdat_brain_scale$t1_amgv+1*simdat_brain_scale$t1_ct+6*simdat_brain_scale$parental_education+rnorm(10000, mean = 100, sd = 15)
+
+#Transform the distribution
+simdat_brain_scale <- simdat_brain_scale %>% 
+  mutate_at(vars(t1_iq), function(x) scale(x)*15 + 100)
+
+simdat_brain_scale$t1_iq <- round(simdat_brain_scale$t1_iq[,1])
+
+#Create the time points
+simdat_brain_scale$t2_iq<-round(simdat_brain_scale$t1_iq+rnorm(10000, mean = 0.8, sd = 0.3))
+simdat_brain_scale$t3_iq<-round(simdat_brain_scale$t2_iq+rnorm(10000, mean = 0.8, sd = 0.3))
+simdat_brain_scale$t4_iq<-round(simdat_brain_scale$t3_iq+rnorm(10000, mean = 0.8, sd = 0.3))
+simdat_brain_scale$t5_iq<-round(simdat_brain_scale$t4_iq+rnorm(10000, mean = 0.8, sd = 0.3))
+simdat_brain_scale$t6_iq<-round(simdat_brain_scale$t5_iq+rnorm(10000, mean = 0.8, sd = 0.3))
+simdat_brain_scale$t7_iq<-round(simdat_brain_scale$t6_iq+rnorm(10000, mean = 0.8, sd = 0.3))
+
+ggplot(simdat_brain_scale,aes(x=t7_iq))+
+  geom_histogram(stat="bin",bins=30)
+
+dat_iq<-simdat_brain_scale[,c("t1_iq","t2_iq","t3_iq","t4_iq","t5_iq","t6_iq","t7_iq","id")]
+plotdat_iq<-melt(dat_iq[,c(1:7,ncol(dat_iq))],by=id)
+plotdat_iq$sex<-as.factor(rep(simdat_brain_scale$group,times=7))
+colnames(plotdat_iq)<-c("id","wave","iq","sex")
+plotdat_iq$wave<-gsub("iq_","",plotdat_iq$wave)
+levels(plotdat_iq$sex)<-c('Male','Female')
+ggplot(plotdat_iq)+
+  geom_point(aes(wave,iq,group=id,col=sex),alpha=0.7)+
+  geom_line(aes(wave,iq,group=id,col=sex),alpha=0.7)
+
+
+####Autism#### 
+simdat_brain_scale$autism_diagnosis <- 3*simdat_brain_scale$t1_gmv+2*simdat_brain_scale$t1_wmv+2.5*simdat_brain_scale$t1_icv+1.5*simdat_brain_scale$t1_hippv+1*simdat_brain_scale$t1_amgv-1*simdat_brain_scale$t1_ct-3*simdat_brain_scale$group+rnorm(10000, mean = 10, sd = 5)
+
+#Transform the distribution
+simdat_brain_scale <- simdat_brain_scale %>% 
+  mutate_at(vars(autism_diagnosis), function(x) scale(x)*1 + 10)
+
+simdat_brain_scale$autism_diagnosis <- ifelse(simdat_brain_scale$autism_diagnosis>=8,0,1)
+table(simdat_brain_scale$autism_diagnosis)
+
+simdat_brain_scale$autism_diagnosis<-simdat_brain_scale$autism_diagnosis[,1]
+
+
+####CBCL Externalizing####
+set.seed(123)
+simdat_brain_scale$t1_cbcl_ext<- 7*simdat_brain_scale$t1_gmv+7*simdat_brain_scale$t1_wmv+7*simdat_brain_scale$t1_icv+5*simdat_brain_scale$t1_hippv-0.8*simdat_brain_scale$t1_amgv+5*simdat_brain_scale$t1_ct+5*simdat_brain_scale$parental_education-3*simdat_brain_scale$autism_diagnosis+rnorm(10000, mean = 100, sd = 30)
+
+#Transform the distribution
+simdat_brain_scale$t1_cbcl_ext<-(1/(log(simdat_brain_scale$t1_cbcl_ext)))
+
+simdat_brain_scale$t1_cbcl_ext<-round(range01(simdat_brain_scale$t1_cbcl_ext)*80)
+
+simdat_brain_scale$t1_cbcl_ext<-simdat_brain_scale$t1_cbcl_ext-10
+
+simdat_brain_scale$t1_cbcl_ext[simdat_brain_scale$t1_cbcl_ext<=0]<-0
+
+ggplot(simdat_brain_scale,aes(x=t1_cbcl_ext))+
+  geom_histogram(stat="bin",bins=30)
+
+#Create the time points
+simdat_brain_scale$t2_cbcl_ext<-simdat_brain_scale$t1_cbcl_ext-round(rnorm(10000, mean = 1.5, sd = 0.7))
+simdat_brain_scale$t2_cbcl_ext[simdat_brain_scale$t2_cbcl_ext<=0]<-0
+
+simdat_brain_scale$t3_cbcl_ext<-simdat_brain_scale$t2_cbcl_ext-round(rnorm(10000, mean = 1, sd = 0.7))
+simdat_brain_scale$t3_cbcl_ext[simdat_brain_scale$t3_cbcl_ext<=0]<-0
+
+simdat_brain_scale$t4_cbcl_ext<-simdat_brain_scale$t3_cbcl_ext-round(rnorm(10000, mean = 1, sd = 0.7))
+simdat_brain_scale$t4_cbcl_ext[simdat_brain_scale$t4_cbcl_ext<=0]<-0
+
+simdat_brain_scale$t5_cbcl_ext<-simdat_brain_scale$t4_cbcl_ext-round(rnorm(10000, mean = 1, sd = 0.7))
+simdat_brain_scale$t5_cbcl_ext[simdat_brain_scale$t5_cbcl_ext<=0]<-0
+
+simdat_brain_scale$t6_cbcl_ext<-simdat_brain_scale$t5_cbcl_ext-round(rnorm(10000, mean = 1, sd = 0.7))
+simdat_brain_scale$t6_cbcl_ext[simdat_brain_scale$t6_cbcl_ext<=0]<-0
+
+simdat_brain_scale$t7_cbcl_ext<-simdat_brain_scale$t6_cbcl_ext-round(rnorm(10000, mean = 1, sd = 0.7))
+simdat_brain_scale$t7_cbcl_ext[simdat_brain_scale$t7_cbcl_ext<=0]<-0
+
+dat_cbcl_ext<-simdat_brain_scale[,c("t1_cbcl_ext","t2_cbcl_ext","t3_cbcl_ext","t4_cbcl_ext","t5_cbcl_ext","t6_cbcl_ext","t7_cbcl_ext","id")]
+plotdat_cbcl_ext<-melt(dat_cbcl_ext[,c(1:7,ncol(dat_cbcl_ext))],by=id)
+plotdat_cbcl_ext$sex<-as.factor(rep(simdat_brain_scale$group,times=7))
+colnames(plotdat_cbcl_ext)<-c("id","wave","cbcl_ext","sex")
+plotdat_cbcl_ext$wave<-gsub("_cbcl_ext","",plotdat_cbcl_ext$wave)
+levels(plotdat_cbcl_ext$sex)<-c('Male','Female')
+ggplot(plotdat_cbcl_ext)+
+  geom_point(aes(wave,cbcl_ext,group=id,col=sex),alpha=0.7)+
+  geom_line(aes(wave,cbcl_ext,group=id,col=sex),alpha=0.7)
+
+
+####CBCL Internalizing####
+simdat_brain_scale$t1_cbcl_int<- -3*simdat_brain_scale$t1_gmv-3*simdat_brain_scale$t1_wmv-8*simdat_brain_scale$t1_icv-2*simdat_brain_scale$t1_hippv-1*simdat_brain_scale$t1_amgv-0.3*simdat_brain_scale$t1_ct+5*simdat_brain_scale$t1_cbcl_ext-5*simdat_brain_scale$parental_education+4*simdat_brain_scale$autism_diagnosis+rnorm(10000, mean = 100, sd = 30)
+
+#Transform the distribution
+simdat_brain_scale$t1_cbcl_int<-simdat_brain_scale$t1_cbcl_int+100
+simdat_brain_scale$t1_cbcl_int[simdat_brain_scale$t1_cbcl_int<=0]<-0
+simdat_brain_scale$t1_cbcl_int<-round(range01(simdat_brain_scale$t1_cbcl_int)*60)
+
+ggplot(simdat_brain_scale,aes(x=t1_cbcl_int))+
+  geom_histogram(stat="bin",bins=30)
+
+#Create the time points
+simdat_brain_scale$t2_cbcl_int<-simdat_brain_scale$t1_cbcl_int+round(rnorm(10000, mean = 1.5, sd = 0.7))
+simdat_brain_scale$t2_cbcl_int[simdat_brain_scale$t2_cbcl_int<=0]<-0
+simdat_brain_scale$t2_cbcl_int[simdat_brain_scale$t2_cbcl_int>64]<-64
+
+simdat_brain_scale$t3_cbcl_int<-simdat_brain_scale$t2_cbcl_int+round(rnorm(10000, mean = 1, sd = 0.8))
+simdat_brain_scale$t3_cbcl_int[simdat_brain_scale$t3_cbcl_int<=0]<-0
+simdat_brain_scale$t3_cbcl_int[simdat_brain_scale$t3_cbcl_int>64]<-64
+
+simdat_brain_scale$t4_cbcl_int<-simdat_brain_scale$t3_cbcl_int+round(rnorm(10000, mean = 1, sd = 0.8))
+simdat_brain_scale$t4_cbcl_int[simdat_brain_scale$t4_cbcl_int<=0]<-0
+simdat_brain_scale$t4_cbcl_int[simdat_brain_scale$t4_cbcl_int>64]<-64
+
+simdat_brain_scale$t5_cbcl_int<-simdat_brain_scale$t4_cbcl_int+round(rnorm(10000, mean = 1, sd = 0.8))
+simdat_brain_scale$t5_cbcl_int[simdat_brain_scale$t5_cbcl_int<=0]<-0
+simdat_brain_scale$t5_cbcl_int[simdat_brain_scale$t5_cbcl_int>64]<-64
+
+simdat_brain_scale$t6_cbcl_int<-simdat_brain_scale$t5_cbcl_int+round(rnorm(10000, mean = 1, sd = 0.8))
+simdat_brain_scale$t6_cbcl_int[simdat_brain_scale$t6_cbcl_int<=0]<-0
+simdat_brain_scale$t6_cbcl_int[simdat_brain_scale$t6_cbcl_int>64]<-64
+
+simdat_brain_scale$t7_cbcl_int<-simdat_brain_scale$t6_cbcl_int+round(rnorm(10000, mean = 1, sd = 0.7))
+simdat_brain_scale$t7_cbcl_int[simdat_brain_scale$t7_cbcl_int<=0]<-0
+simdat_brain_scale$t7_cbcl_int[simdat_brain_scale$t7_cbcl_int>64]<-64
+
+dat_cbcl_int<-simdat_brain_scale[,c("t1_cbcl_int","t2_cbcl_int","t3_cbcl_int","t4_cbcl_int","t5_cbcl_int","t6_cbcl_int","t7_cbcl_int","id")]
+plotdat_cbcl_int<-melt(dat_cbcl_int[,c(1:7,ncol(dat_cbcl_int))],by=id)
+plotdat_cbcl_int$sex<-as.factor(rep(simdat_brain_scale$group,times=7))
+colnames(plotdat_cbcl_int)<-c("id","wave","cbcl_int","sex")
+plotdat_cbcl_int$wave<-gsub("_cbcl_int","",plotdat_cbcl_int$wave)
+levels(plotdat_cbcl_int$sex)<-c('Male','Female')
+ggplot(plotdat_cbcl_int)+
+  geom_point(aes(wave,cbcl_int,group=id,col=sex),alpha=0.7)+
+  geom_line(aes(wave,cbcl_int,group=id,col=sex),alpha=0.7)
+
+
+####CBCL Attention####
+simdat_brain_scale$t1_cbcl_att<- -5*simdat_brain_scale$t1_gmv-5*simdat_brain_scale$t1_wmv-4*simdat_brain_scale$t1_icv-5*simdat_brain_scale$t1_hippv-5*simdat_brain_scale$t1_amgv-5*simdat_brain_scale$t1_ct+3*simdat_brain_scale$t1_cbcl_ext-1*simdat_brain_scale$parental_education+4*simdat_brain_scale$autism_diagnosis+rnorm(10000, mean = 100, sd = 30)
+
+#Transform the distribution
+simdat_brain_scale$t1_cbcl_att<-simdat_brain_scale$t1_cbcl_att+110
+simdat_brain_scale$t1_cbcl_att[simdat_brain_scale$t1_cbcl_att<=0]<-0
+simdat_brain_scale$t1_cbcl_att<-round(range01(simdat_brain_scale$t1_cbcl_att)*20)
+
+ggplot(simdat_brain_scale,aes(x=t1_cbcl_att))+
+  geom_histogram(stat="bin",bins=30)
+
+#Create the time points
+simdat_brain_scale$t2_cbcl_att<-simdat_brain_scale$t1_cbcl_att-round(rnorm(10000, mean = 0.5, sd = 0.5))
+simdat_brain_scale$t2_cbcl_att[simdat_brain_scale$t2_cbcl_att<=0]<-0
+simdat_brain_scale$t2_cbcl_att[simdat_brain_scale$t2_cbcl_att>20]<-20
+
+simdat_brain_scale$t3_cbcl_att<-simdat_brain_scale$t2_cbcl_att-round(rnorm(10000, mean = 0.5, sd = 0.5))
+simdat_brain_scale$t3_cbcl_att[simdat_brain_scale$t3_cbcl_att<=0]<-0
+simdat_brain_scale$t3_cbcl_att[simdat_brain_scale$t3_cbcl_att>20]<-20
+
+simdat_brain_scale$t4_cbcl_att<-simdat_brain_scale$t3_cbcl_att-round(rnorm(10000, mean = 0.5, sd = 0.5))
+simdat_brain_scale$t4_cbcl_att[simdat_brain_scale$t4_cbcl_att<=0]<-0
+simdat_brain_scale$t4_cbcl_att[simdat_brain_scale$t4_cbcl_att>20]<-20
+
+simdat_brain_scale$t5_cbcl_att<-simdat_brain_scale$t4_cbcl_att-round(rnorm(10000, mean = 0.5, sd = 0.5))
+simdat_brain_scale$t5_cbcl_att[simdat_brain_scale$t5_cbcl_att<=0]<-0
+simdat_brain_scale$t5_cbcl_att[simdat_brain_scale$t5_cbcl_att>20]<-20
+
+simdat_brain_scale$t6_cbcl_att<-simdat_brain_scale$t5_cbcl_att-round(rnorm(10000, mean = 0.5, sd = 0.5))
+simdat_brain_scale$t6_cbcl_att[simdat_brain_scale$t6_cbcl_att<=0]<-0
+simdat_brain_scale$t6_cbcl_att[simdat_brain_scale$t6_cbcl_att>20]<-20
+
+simdat_brain_scale$t7_cbcl_att<-simdat_brain_scale$t6_cbcl_att-round(rnorm(10000, mean = 0.5, sd = 0.5))
+simdat_brain_scale$t7_cbcl_att[simdat_brain_scale$t7_cbcl_att<=0]<-0
+simdat_brain_scale$t7_cbcl_att[simdat_brain_scale$t7_cbcl_att>20]<-20
+
+dat_cbcl_att<-simdat_brain_scale[,c("t1_cbcl_att","t2_cbcl_att","t3_cbcl_att","t4_cbcl_att","t5_cbcl_att","t6_cbcl_att","t7_cbcl_att","id")]
+plotdat_cbcl_att<-melt(dat_cbcl_att[,c(1:7,ncol(dat_cbcl_att))],by=id)
+plotdat_cbcl_att$sex<-as.factor(rep(simdat_brain_scale$group,times=7))
+colnames(plotdat_cbcl_att)<-c("id","wave","cbcl_att","sex")
+plotdat_cbcl_att$wave<-gsub("_cbcl_att","",plotdat_cbcl_att$wave)
+levels(plotdat_cbcl_att$sex)<-c('Male','Female')
+ggplot(plotdat_cbcl_att)+
+  geom_point(aes(wave,cbcl_att,group=id,col=sex),alpha=0.7)+
+  geom_line(aes(wave,cbcl_att,group=id,col=sex),alpha=0.7)
+
+
+#Correlation matrix with the covariates
+brain_predict$t1_iq<-simdat_brain_scale$t1_iq
+brain_predict$autism_diagnosis<-simdat_brain_scale$autism_diagnosis
+brain_predict$parental_education<-simdat_brain_scale$parental_education
+brain_predict$t1_cbcl_att<-simdat_brain_scale$t1_cbcl_att
+brain_predict$t1_cbcl_int<-simdat_brain_scale$t1_cbcl_int
+brain_predict$t1_cbcl_ext<-simdat_brain_scale$t1_cbcl_ext
+brain_predict$sex<-simdat_brain_scale$group
+
+brain_predict_cor<-brain_predict
+colnames(brain_predict_cor)<-c("i_icvolume","s_icvolume","i_hippvolume","s_hippvolume","i_amgvolume","s_amgvolume",
+                               "i_gmvolume","s_gmvolume","i_wmvolume","s_wmvolume","q_wmvolume","i_ctfrontal","s_ctfrontal",
+                               "iq","autism_diag","parental_ed","cbcl_att","cbcl_int" ,"cbcl_ext","sex")
+
+cor_brain <- cor(brain_predict_cor[,c(1:10,12:20)])
+corrplot(cor_brain)
+corrplot(cor_brain,method="number")
+
+p.mat<- cor.mtest(brain_predict_cor[,c(1:10,12:20)])
+
+corrplot(cor_brain,method = "color",tl.col = "black",
+         p.mat = p.mat$p,sig.level = c(0.001,0.01,0.05),
+         pch.cex=0.9,insig="label_sig",pch.col = "grey10")
+
+q.mat<-p.mat$p
+for (i in 1:ncol(q.mat)) {
+  q.mat[i,]<-p.adjust(q.mat[i,],method="fdr")
+}
+corrplot(cor_brain,method = "color",tl.col = "black",
+         p.mat = q.mat,sig.level = c(0.001,0.01,0.05),
+         pch.cex=0.9,insig="label_sig",pch.col = "grey10")
+
+```
+
+
+## Add demographic measures
+```{r,echo=FALSE}
+
+simdat_brain<-merge(simdat_brain,simdat_brain_scale[,43:74],by=c("id","group"))
+
+#Add Site_id
+simdat_brain$site_id<-rep("leer",time=10000)
+
+#Add date of birth
+#All entries are in ISO8601 format, which is YYYY-MM-DD
+#random 
+simdat_brain$dob <- as.Date(x = rdunif(n = 10000,a = as.integer(as.Date("2014-01-01")),b = as.integer(as.Date("2015-01-01"))),origin = "1970-01-01")
+
+#Change sex from 1-2 to 0-1
+simdat_brain$group[simdat_brain$group==1] <- 0
+simdat_brain$group[simdat_brain$group==2] <- 1
+simdat_brain$group<-as.integer(simdat_brain$group)
+
+
+####Some of the covariates need to be added in the long format####
+
+#Divide into three samples before putting into long format.
+simdat_brain_extract<-simdat_brain
+n1=sample(1:30000, 10000)
+simdat_brain_1<-simdat_brain_extract[n1,]
+simdat_brain_extract <- simdat_brain_extract %>%  
+  filter(!row_number() %in% n1)
+
+n2=sample(1:20000, 10000)
+simdat_brain_2<-simdat_brain_extract[n2,]
+
+simdat_brain_extract <- simdat_brain_extract %>%  
+  filter(!row_number() %in% n2)
+simdat_brain_3<-simdat_brain_extract 
+
+
+#Put into long format
+simdat_brain_1_long <- simdat_brain_1 %>%
+  pivot_longer(cols = ends_with(c("gmv","wmv","icv","hippv","amgv","ct","iq","cbcl_ext","cbcl_int","cbcl_att")),
+               names_to = c("wave_number", ".value"),
+               names_pattern = ".(.).(.+)") %>%
+  mutate(wave_number = as.numeric(wave_number))
+
+colnames(simdat_brain_1_long)<- c("subject_id","sex","parental_education","autism_diagnosis","site_id","dob","wave_number","gm_volume","wm_volume","icv","hippo_volume","amygdala_volume","frontal_lobe_gm_thickness","iq","cbcl_externalizing_raw_score","cbcl_internalizing_raw_score","cbcl_attentionproblem_raw_score")
+
+simdat_brain_2_long <- simdat_brain_2 %>%
+  pivot_longer(cols = ends_with(c("gmv","wmv","icv","hippv","amgv","ct","iq","cbcl_ext","cbcl_int","cbcl_att")),
+               names_to = c("wave_number", ".value"),
+               names_pattern = ".(.).(.+)") %>%
+  mutate(wave_number = as.numeric(wave_number))
+
+colnames(simdat_brain_2_long)<- c("subject_id","sex","parental_education","autism_diagnosis","site_id","dob","wave_number","gm_volume","wm_volume","icv","hippo_volume","amygdala_volume","frontal_lobe_gm_thickness","iq","cbcl_externalizing_raw_score","cbcl_internalizing_raw_score","cbcl_attentionproblem_raw_score")
+
+simdat_brain_3_long <- simdat_brain_3 %>%
+  pivot_longer(cols = ends_with(c("gmv","wmv","icv","hippv","amgv","ct","iq","cbcl_ext","cbcl_int","cbcl_att")),
+               names_to = c("wave_number", ".value"),
+               names_pattern = ".(.).(.+)") %>%
+  mutate(wave_number = as.numeric(wave_number))
+
+colnames(simdat_brain_3_long)<- c("subject_id","sex","parental_education","autism_diagnosis","site_id","dob","wave_number","gm_volume","wm_volume","icv","hippo_volume","amygdala_volume","frontal_lobe_gm_thickness","iq","cbcl_externalizing_raw_score","cbcl_internalizing_raw_score","cbcl_attentionproblem_raw_score")
+  
+
+#Change class of some columns
+simdat_brain_1_long$subject_id<-as.character(simdat_brain_1_long$subject_id)
+simdat_brain_1_long <- simdat_brain_1_long %>% 
+  mutate_at(c('wave_number', 'iq', 'autism_diagnosis', 'parental_education', 'cbcl_attentionproblem_raw_score', 'cbcl_externalizing_raw_score', 'cbcl_internalizing_raw_score'), as.integer)
+
+sapply(simdat_brain_1_long,class)
+
+simdat_brain_2_long$subject_id<-as.character(simdat_brain_2_long$subject_id)
+simdat_brain_2_long <- simdat_brain_2_long %>% 
+  mutate_at(c('wave_number', 'iq', 'autism_diagnosis', 'parental_education', 'cbcl_attentionproblem_raw_score', 'cbcl_externalizing_raw_score', 'cbcl_internalizing_raw_score'), as.integer)
+
+sapply(simdat_brain_2_long,class)
+
+simdat_brain_3_long$subject_id<-as.character(simdat_brain_3_long$subject_id)
+simdat_brain_3_long <- simdat_brain_3_long %>% 
+  mutate_at(c('wave_number', 'iq', 'autism_diagnosis', 'parental_education', 'cbcl_attentionproblem_raw_score', 'cbcl_externalizing_raw_score', 'cbcl_internalizing_raw_score'), as.integer)
+
+sapply(simdat_brain_3_long,class)
+
+#Add Measurement date
+#All entries are in ISO8601 format, which is YYYY-MM-DD
+#Wave 1 – 7-8 years - 2558-2924
+#Wave 2 – 9-10 years
+#Wave 3 – 11-12 years
+#Wave 4 – 13-14 years
+#Wave 5 – 15-16 years
+#Wave 6 – 17-18 years
+#Wave 7 – 19-20 years
+
+simdat_brain_1_long$brain_behavior_measurement_date<-rep(NA,time=nrow(simdat_brain_1_long))
+
+for (i in seq(from=1, to=nrow(simdat_brain_1_long), by=7)){
+  if (simdat_brain_1_long$wave_number[i]==1){
+    simdat_brain_1_long$brain_behavior_measurement_date[i]<-simdat_brain_1_long$dob[i]+sample(2558:3240, 1)
+  }
+  if (simdat_brain_1_long$wave_number[i+1]==2){
+    simdat_brain_1_long$brain_behavior_measurement_date[i+1]<-simdat_brain_1_long$brain_behavior_measurement_date[i]+sample(730:790, 1)
+    simdat_brain_1_long$brain_behavior_measurement_date<-as.Date(simdat_brain_1_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_1_long$wave_number[i+2]==3){
+    simdat_brain_1_long$brain_behavior_measurement_date[i+2]<-simdat_brain_1_long$brain_behavior_measurement_date[i+1]+sample(730:760, 1)
+    simdat_brain_1_long$brain_behavior_measurement_date<-as.Date(simdat_brain_1_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_1_long$wave_number[i+3]==4){
+    simdat_brain_1_long$brain_behavior_measurement_date[i+3]<-simdat_brain_1_long$brain_behavior_measurement_date[i+2]+sample(720:730, 1)
+    simdat_brain_1_long$brain_behavior_measurement_date<-as.Date(simdat_brain_1_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_1_long$wave_number[i+4]==5){
+    simdat_brain_1_long$brain_behavior_measurement_date[i+4]<-simdat_brain_1_long$brain_behavior_measurement_date[i+3]+sample(720:730, 1)
+    simdat_brain_1_long$brain_behavior_measurement_date<-as.Date(simdat_brain_1_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_1_long$wave_number[i+5]==6){
+    simdat_brain_1_long$brain_behavior_measurement_date[i+5]<-simdat_brain_1_long$brain_behavior_measurement_date[i+4]+sample(720:730, 1)
+    simdat_brain_1_long$brain_behavior_measurement_date<-as.Date(simdat_brain_1_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_1_long$wave_number[i+6]==7){
+    simdat_brain_1_long$brain_behavior_measurement_date[i+6]<-simdat_brain_1_long$brain_behavior_measurement_date[i+5]+sample(720:730, 1)
+    simdat_brain_1_long$brain_behavior_measurement_date<-as.Date(simdat_brain_1_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+}
+
+simdat_brain_2_long$brain_behavior_measurement_date<-rep(NA,time=nrow(simdat_brain_2_long))
+
+for (i in seq(from=1, to=nrow(simdat_brain_2_long), by=7)){
+  if (simdat_brain_2_long$wave_number[i]==1){
+    simdat_brain_2_long$brain_behavior_measurement_date[i]<-simdat_brain_2_long$dob[i]+sample(2558:3240, 1)
+  }
+  if (simdat_brain_2_long$wave_number[i+1]==2){
+    simdat_brain_2_long$brain_behavior_measurement_date[i+1]<-simdat_brain_2_long$brain_behavior_measurement_date[i]+sample(730:790, 1)
+    simdat_brain_2_long$brain_behavior_measurement_date<-as.Date(simdat_brain_2_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_2_long$wave_number[i+2]==3){
+    simdat_brain_2_long$brain_behavior_measurement_date[i+2]<-simdat_brain_2_long$brain_behavior_measurement_date[i+1]+sample(730:760, 1)
+    simdat_brain_2_long$brain_behavior_measurement_date<-as.Date(simdat_brain_2_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_2_long$wave_number[i+3]==4){
+    simdat_brain_2_long$brain_behavior_measurement_date[i+3]<-simdat_brain_2_long$brain_behavior_measurement_date[i+2]+sample(720:730, 1)
+    simdat_brain_2_long$brain_behavior_measurement_date<-as.Date(simdat_brain_2_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_2_long$wave_number[i+4]==5){
+    simdat_brain_2_long$brain_behavior_measurement_date[i+4]<-simdat_brain_2_long$brain_behavior_measurement_date[i+3]+sample(720:730, 1)
+    simdat_brain_2_long$brain_behavior_measurement_date<-as.Date(simdat_brain_2_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_2_long$wave_number[i+5]==6){
+    simdat_brain_2_long$brain_behavior_measurement_date[i+5]<-simdat_brain_2_long$brain_behavior_measurement_date[i+4]+sample(720:730, 1)
+    simdat_brain_2_long$brain_behavior_measurement_date<-as.Date(simdat_brain_2_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_2_long$wave_number[i+6]==7){
+    simdat_brain_2_long$brain_behavior_measurement_date[i+6]<-simdat_brain_2_long$brain_behavior_measurement_date[i+5]+sample(720:730, 1)
+    simdat_brain_2_long$brain_behavior_measurement_date<-as.Date(simdat_brain_2_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+}
+
+simdat_brain_3_long$brain_behavior_measurement_date<-rep(NA,time=nrow(simdat_brain_3_long))
+
+for (i in seq(from=1, to=nrow(simdat_brain_3_long), by=7)){
+  if (simdat_brain_3_long$wave_number[i]==1){
+    simdat_brain_3_long$brain_behavior_measurement_date[i]<-simdat_brain_3_long$dob[i]+sample(2558:3240, 1)
+  }
+  if (simdat_brain_3_long$wave_number[i+1]==2){
+    simdat_brain_3_long$brain_behavior_measurement_date[i+1]<-simdat_brain_3_long$brain_behavior_measurement_date[i]+sample(730:790, 1)
+    simdat_brain_3_long$brain_behavior_measurement_date<-as.Date(simdat_brain_3_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_3_long$wave_number[i+2]==3){
+    simdat_brain_3_long$brain_behavior_measurement_date[i+2]<-simdat_brain_3_long$brain_behavior_measurement_date[i+1]+sample(730:760, 1)
+    simdat_brain_3_long$brain_behavior_measurement_date<-as.Date(simdat_brain_3_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_3_long$wave_number[i+3]==4){
+    simdat_brain_3_long$brain_behavior_measurement_date[i+3]<-simdat_brain_3_long$brain_behavior_measurement_date[i+2]+sample(720:730, 1)
+    simdat_brain_3_long$brain_behavior_measurement_date<-as.Date(simdat_brain_3_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_3_long$wave_number[i+4]==5){
+    simdat_brain_3_long$brain_behavior_measurement_date[i+4]<-simdat_brain_3_long$brain_behavior_measurement_date[i+3]+sample(720:730, 1)
+    simdat_brain_3_long$brain_behavior_measurement_date<-as.Date(simdat_brain_3_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_3_long$wave_number[i+5]==6){
+    simdat_brain_3_long$brain_behavior_measurement_date[i+5]<-simdat_brain_3_long$brain_behavior_measurement_date[i+4]+sample(720:730, 1)
+    simdat_brain_3_long$brain_behavior_measurement_date<-as.Date(simdat_brain_3_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+  if (simdat_brain_3_long$wave_number[i+6]==7){
+    simdat_brain_3_long$brain_behavior_measurement_date[i+6]<-simdat_brain_3_long$brain_behavior_measurement_date[i+5]+sample(720:730, 1)
+    simdat_brain_3_long$brain_behavior_measurement_date<-as.Date(simdat_brain_3_long$brain_behavior_measurement_date, origin ="1970-01-01")
+  }
+}
+
+#Add Age
+#All entries are between 60 and 276 months
+#brain_behavior_measurement_date - dob = age
+simdat_brain_1_long <- simdat_brain_1_long %>% 
+  mutate(age = as.integer(brain_behavior_measurement_date-dob))%>% 
+  mutate(age = round(age/30.417, digit=0))
+
+simdat_brain_1_long$age<-as.integer(simdat_brain_1_long$age)
+
+simdat_brain_2_long <- simdat_brain_2_long %>% 
+  mutate(age = as.integer(brain_behavior_measurement_date-dob))%>% 
+  mutate(age = round(age/30.417, digit=0))
+
+simdat_brain_2_long$age<-as.integer(simdat_brain_2_long$age)
+
+simdat_brain_3_long <- simdat_brain_3_long %>% 
+  mutate(age = as.integer(brain_behavior_measurement_date-dob))%>% 
+  mutate(age = round(age/30.417, digit=0))
+
+simdat_brain_3_long$age<-as.integer(simdat_brain_3_long$age)
+
+#Plot age to check
+ggplot(simdat_brain_3_long,aes(x=age,y=gm_volume,colour = sex))+
+  geom_point()
+
+ggplot(simdat_brain_3_long,aes(x=age,y=wave_number))+
+  geom_point()+
+  geom_vline(xintercept=84)+
+  geom_vline(xintercept=108)+
+  geom_vline(xintercept=132)+
+  geom_vline(xintercept=156)+
+  geom_vline(xintercept=180)+
+  geom_vline(xintercept=204)+
+  geom_vline(xintercept=228)+
+  geom_vline(xintercept=252)
+
+```
+
+
+## Missingness Models
+```{r}
+#| warning: false
+#| message: false
+
+df1<-simdat_brain_1_long
+Nsubs <- length(unique(df1$subject_id))
+Nobs <- max(df1$wave_number)
+
+df2<-simdat_brain_2_long
+df3<-simdat_brain_3_long
+
+```
+
+### Unconditional Missing Data Models
+
+#### Truly MCAR Model
+
+```{r}
+#| warning: false
+#| message: false
+
+set.seed(02528)
+
+missing_tMCAR <- rbinom(Nsubs * Nobs, 1, 0.2)
+df_tMCAR <- df[missing_tMCAR != 1,]
+```
+
+#### Systematic MCAR Models
+
+##### MCAR - Cohort-sequential
+
+```{r}
+#| warning: false
+#| message: false
+
+set.seed(54881)
+
+missing_cohortSequential <- rbinom(Nsubs, 1, 0.5)
+
+df_cohortSequential <- df %>% group_by(subject_id) %>%
+  filter(ifelse(missing_cohortSequential[subject_id] == 1, 
+                c(TRUE,TRUE,TRUE,TRUE,TRUE,FALSE,FALSE),
+                c(FALSE,FALSE,TRUE,TRUE,TRUE,TRUE,TRUE)))
+```
+
+##### MCAR - Alternating
+
+```{r}
+#| warning: false
+#| message: false
+
+set.seed(93733)
+
+missing_alternating <- rbinom(Nsubs, 1, 0.5)
+
+df_alternating <- df %>% group_by(subject_id) %>%
+  filter(ifelse(missing_alternating[subject_id] == 1, 
+                c(TRUE,FALSE,TRUE,FALSE,TRUE,FALSE,TRUE),
+                c(FALSE,TRUE,FALSE,TRUE,FALSE,TRUE,FALSE)))
+```
+
+### Conditional Missing Data Models (MAR if all relevant variables included; MNAR otherwise)
+
+```{r}
+#| warning: false
+#| message: false
+
+set.seed(59608)
+
+maximum_missing <- 0.115
+MRI_cols <- c("gm_volume","wm_volume","icv","hippo_volume","amygdala_volume","frontal_lobe_gm_thickness")
+
+df1_MAR <- df1 %>%
+  
+  # Missing Time Point Model
+  mutate(f_xt = 0.2 + 
+           0.1*wave_number + 
+           -0.1*sex +                                    # should group = sex?
+           0.01*iq + 
+           0.3*autism_diagnosis + 
+           0.15*(parental_education == 0) + 
+           0.05*(parental_education == 1) + 
+           -0.1*(parental_education == 3) + 
+           0.4*(cbcl_externalizing_raw_score > 
+                  2*sd(cbcl_externalizing_raw_score) + 
+                  mean(cbcl_externalizing_raw_score)) + 
+           0.7*(cbcl_internalizing_raw_score > 
+                  3*sd(cbcl_internalizing_raw_score) +
+                  mean(cbcl_internalizing_raw_score)) + 
+           0.05*cbcl_attentionproblem_raw_score,
+         missing_timepoint_prob = maximum_missing*(exp(f_xt)/(1 + exp(f_xt)))) %>%
+  
+  # Missing Observation Model
+  mutate(f_x_MRI = 0 - (0 - 0.2)*exp(-0.5*(wave_number - 1)),      # negative exponential model
+         missing_MRI_prob = maximum_missing*(exp(f_x_MRI)/(1 + exp(f_x_MRI))),
+         f_x_externalizing = 0 + 0.04*cbcl_externalizing_raw_score,
+         missing_externalizing_prob = maximum_missing*(exp(f_x_externalizing)/(1 + exp(f_x_externalizing))),
+         f_x_internalizing = 0 + 0.1*cbcl_internalizing_raw_score,
+         missing_internalizing_prob = maximum_missing*(exp(f_x_internalizing)/(1 + exp(f_x_internalizing))),
+         f_x_attention = 0 + 0.2*cbcl_attentionproblem_raw_score,
+         missing_attention_prob = maximum_missing*(exp(f_x_attention)/(1 + exp(f_x_attention))))
+
+for (n in 1:nrow(df1_MAR)){
+  # Remove Time points
+  if (rbinom(1,1,as.numeric(df1_MAR[n,"missing_timepoint_prob"])) == 1){
+    df1_MAR[n,c("iq","autism_diagnosis","parental_education","cbcl_attentionproblem_raw_score","cbcl_externalizing_raw_score","cbcl_internalizing_raw_score","gm_volume","wm_volume","icv","hippo_volume","amygdala_volume","frontal_lobe_gm_thickness","age" )] <- NA                      #Some columns cannot have NA
+  } else {
+    if (rbinom(1,1,as.numeric(df1_MAR[n,"missing_MRI_prob"])) == 1){
+      df1_MAR[n,MRI_cols] <- NA}
+    if (rbinom(1,1,as.numeric(df1_MAR[n,"missing_externalizing_prob"])) == 1){
+      df1_MAR[n,"cbcl_externalizing_raw_score"] <- NA}
+    if (rbinom(1,1,as.numeric(df1_MAR[n,"missing_internalizing_prob"])) == 1){
+      df1_MAR[n,"cbcl_internalizing_raw_score"] <- NA}
+    if (rbinom(1,1,as.numeric(df1_MAR[n,"missing_attention_prob"])) == 1){
+      df1_MAR[n,"cbcl_attentionproblem_raw_score"] <- NA}
+  }
+}
+
+df1_MAR <- df1_MAR %>%
+  select(-f_xt,-f_x_MRI,-f_x_externalizing,-f_x_internalizing,-f_x_attention,
+         -missing_timepoint_prob,-missing_MRI_prob,-missing_externalizing_prob,
+         -missing_internalizing_prob,-missing_attention_prob)
+
+df2_MAR <- df2 %>%
+  
+  # Missing Time Point Model
+  mutate(f_xt = 0.2 + 
+           0.1*wave_number + 
+           -0.1*sex +                                    # should group = sex?
+           0.01*iq + 
+           0.3*autism_diagnosis + 
+           0.15*(parental_education == 0) + 
+           0.05*(parental_education == 1) + 
+           -0.1*(parental_education == 3) + 
+           0.4*(cbcl_externalizing_raw_score > 
+                  2*sd(cbcl_externalizing_raw_score) + 
+                  mean(cbcl_externalizing_raw_score)) + 
+           0.7*(cbcl_internalizing_raw_score > 
+                  3*sd(cbcl_internalizing_raw_score) +
+                  mean(cbcl_internalizing_raw_score)) + 
+           0.05*cbcl_attentionproblem_raw_score,
+         missing_timepoint_prob = maximum_missing*(exp(f_xt)/(1 + exp(f_xt)))) %>%
+  
+  # Missing Observation Model
+  mutate(f_x_MRI = 0 - (0 - 0.2)*exp(-0.5*(wave_number - 1)),      # negative exponential model
+         missing_MRI_prob = maximum_missing*(exp(f_x_MRI)/(1 + exp(f_x_MRI))),
+         f_x_externalizing = 0 + 0.04*cbcl_externalizing_raw_score,
+         missing_externalizing_prob = maximum_missing*(exp(f_x_externalizing)/(1 + exp(f_x_externalizing))),
+         f_x_internalizing = 0 + 0.1*cbcl_internalizing_raw_score,
+         missing_internalizing_prob = maximum_missing*(exp(f_x_internalizing)/(1 + exp(f_x_internalizing))),
+         f_x_attention = 0 + 0.2*cbcl_attentionproblem_raw_score,
+         missing_attention_prob = maximum_missing*(exp(f_x_attention)/(1 + exp(f_x_attention))))
+
+for (n in 1:nrow(df2_MAR)){
+  # Remove Time points
+  if (rbinom(1,1,as.numeric(df2_MAR[n,"missing_timepoint_prob"])) == 1){
+    df2_MAR[n,c("iq","autism_diagnosis","parental_education","cbcl_attentionproblem_raw_score","cbcl_externalizing_raw_score","cbcl_internalizing_raw_score","gm_volume","wm_volume","icv","hippo_volume","amygdala_volume","frontal_lobe_gm_thickness","age" )] <- NA                      #Some columns cannot have NA
+  } else {
+    if (rbinom(1,1,as.numeric(df2_MAR[n,"missing_MRI_prob"])) == 1){
+      df2_MAR[n,MRI_cols] <- NA}
+    if (rbinom(1,1,as.numeric(df2_MAR[n,"missing_externalizing_prob"])) == 1){
+      df2_MAR[n,"cbcl_externalizing_raw_score"] <- NA}
+    if (rbinom(1,1,as.numeric(df2_MAR[n,"missing_internalizing_prob"])) == 1){
+      df2_MAR[n,"cbcl_internalizing_raw_score"] <- NA}
+    if (rbinom(1,1,as.numeric(df2_MAR[n,"missing_attention_prob"])) == 1){
+      df2_MAR[n,"cbcl_attentionproblem_raw_score"] <- NA}
+  }
+}
+
+df2_MAR <- df2_MAR %>%
+  select(-f_xt,-f_x_MRI,-f_x_externalizing,-f_x_internalizing,-f_x_attention,
+         -missing_timepoint_prob,-missing_MRI_prob,-missing_externalizing_prob,
+         -missing_internalizing_prob,-missing_attention_prob)
+
+df3_MAR <- df3 %>%
+  
+  # Missing Time Point Model
+  mutate(f_xt = 0.2 + 
+           0.1*wave_number + 
+           -0.1*sex +                                    # should group = sex?
+           0.01*iq + 
+           0.3*autism_diagnosis + 
+           0.15*(parental_education == 0) + 
+           0.05*(parental_education == 1) + 
+           -0.1*(parental_education == 3) + 
+           0.4*(cbcl_externalizing_raw_score > 
+                  2*sd(cbcl_externalizing_raw_score) + 
+                  mean(cbcl_externalizing_raw_score)) + 
+           0.7*(cbcl_internalizing_raw_score > 
+                  3*sd(cbcl_internalizing_raw_score) +
+                  mean(cbcl_internalizing_raw_score)) + 
+           0.05*cbcl_attentionproblem_raw_score,
+         missing_timepoint_prob = maximum_missing*(exp(f_xt)/(1 + exp(f_xt)))) %>%
+  
+  # Missing Observation Model
+  mutate(f_x_MRI = 0 - (0 - 0.2)*exp(-0.5*(wave_number - 1)),      # negative exponential model
+         missing_MRI_prob = maximum_missing*(exp(f_x_MRI)/(1 + exp(f_x_MRI))),
+         f_x_externalizing = 0 + 0.04*cbcl_externalizing_raw_score,
+         missing_externalizing_prob = maximum_missing*(exp(f_x_externalizing)/(1 + exp(f_x_externalizing))),
+         f_x_internalizing = 0 + 0.1*cbcl_internalizing_raw_score,
+         missing_internalizing_prob = maximum_missing*(exp(f_x_internalizing)/(1 + exp(f_x_internalizing))),
+         f_x_attention = 0 + 0.2*cbcl_attentionproblem_raw_score,
+         missing_attention_prob = maximum_missing*(exp(f_x_attention)/(1 + exp(f_x_attention))))
+
+for (n in 1:nrow(df3_MAR)){
+  # Remove Time points
+  if (rbinom(1,1,as.numeric(df3_MAR[n,"missing_timepoint_prob"])) == 1){
+    df3_MAR[n,c("iq","autism_diagnosis","parental_education","cbcl_attentionproblem_raw_score","cbcl_externalizing_raw_score","cbcl_internalizing_raw_score","gm_volume","wm_volume","icv","hippo_volume","amygdala_volume","frontal_lobe_gm_thickness","age" )] <- NA                      #Some columns cannot have NA
+  } else {
+    if (rbinom(1,1,as.numeric(df3_MAR[n,"missing_MRI_prob"])) == 1){
+      df3_MAR[n,MRI_cols] <- NA}
+    if (rbinom(1,1,as.numeric(df3_MAR[n,"missing_externalizing_prob"])) == 1){
+      df3_MAR[n,"cbcl_externalizing_raw_score"] <- NA}
+    if (rbinom(1,1,as.numeric(df3_MAR[n,"missing_internalizing_prob"])) == 1){
+      df3_MAR[n,"cbcl_internalizing_raw_score"] <- NA}
+    if (rbinom(1,1,as.numeric(df3_MAR[n,"missing_attention_prob"])) == 1){
+      df3_MAR[n,"cbcl_attentionproblem_raw_score"] <- NA}
+  }
+}
+
+df3_MAR <- df3_MAR %>%
+  select(-f_xt,-f_x_MRI,-f_x_externalizing,-f_x_internalizing,-f_x_attention,
+         -missing_timepoint_prob,-missing_MRI_prob,-missing_externalizing_prob,
+         -missing_internalizing_prob,-missing_attention_prob)
+
+#df_MAR <- df_MAR[!rowSums(is.na(df_MAR[,!names(df_MAR) %in% c("id","wave")])) == 13,]
+
+#CBCL 777 when refused to answer
+refused=sample(1:70000, 1450)
+df1_MAR[refused,c("parental_education")]<-777
+df2_MAR[refused,c("parental_education")]<-777
+df3_MAR[refused,c("parental_education")]<-777
+
+simdat_brain_1_final<-df1_MAR
+simdat_brain_2_final<-df2_MAR
+simdat_brain_3_final<-df3_MAR
+
+```
+
+## Exploring the three datasets
+```{r}
+sum(is.na(simdat_brain_1_final))
+which(is.na(simdat_brain_1_final))
+vis_miss(simdat_brain_1_final[,11:19])
+
+ggpairs(simdat_brain_1_final[,2:10],lower=list(continuous=wrap("smooth", colour="dodgerblue")),
+        diag=list(continuous="bar", wrap=c(colour="blue")))
+
+ggpairs(simdat_brain_1_final[,11:19],lower=list(continuous=wrap("smooth", colour="dodgerblue")),
+        diag=list(continuous="bar", wrap=c(colour="blue")))
+
+summary(simdat_brain_1_final)
+summary(simdat_brain_2_final)
+summary(simdat_brain_3_final)
+
+```
+
+## Saving the simulated datasets
+```{r}
+write.csv(simdat_brain_1_final, "leer_data1.csv", row.names=FALSE)
+write.csv(simdat_brain_2_final, "leer_data2.csv", row.names=FALSE)
+write.csv(simdat_brain_3_final, "leer_data3.csv", row.names=FALSE)
+
+```
+
+
+

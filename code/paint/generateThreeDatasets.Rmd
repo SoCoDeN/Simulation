@@ -1,0 +1,523 @@
+---
+
+Description: This program generates three simulated datasets (paint_data1.csv, paint_data3.csv, and paint_data4.csv). 
+In addition paint_data1_complete.csv and paint_data3_complete.csv are also generated which have the complete datasets without missing data points.
+paint_data4.csv is used as input to LongSim_100prcnt_ASD_prediction.py script which generates paint_data2.csv
+Author: Neda Sadeghi
+Prerequisite: Run step1.Rmd file first
+
+---
+
+
+```{r}
+
+  #set the lifespanFolder to the location of lifespan growth charts
+  #they can be downloaded from https://github.com/brainchart/Lifespan
+  lifespanFolder="./Lifespan"
+  filesToLoad = c("GMV", "WMV","TCV","CT", "sGMV")
+  n = 5
+  coefsForGrowthCurves = vector("list", length = n)
+  set.seed(1000)
+  for (i in 1:n){
+    
+    FIT <- readRDS(paste0(lifespanFolder,"/Share/FIT_",filesToLoad[i],".rds"))
+    POP.CURVE.LIST <- list(AgeTransformed=seq(log(365*6),log(365*23),length.out=2^6),sex=c("Female","Male"))
+    POP.CURVE.RAW <- do.call( what=expand.grid, args=POP.CURVE.LIST )
+    CURVE <- Apply.Param(NEWData=POP.CURVE.RAW, FITParam=FIT$param )
+    CURVE = CURVE %>% mutate(age=exp(AgeTransformed)/365)
+  
+    df = CURVE %>% dplyr::select(age, sex,PRED.m500.pop) %>% mutate(PRED.m500.pop=PRED.m500.pop*10000)
+    df = df %>% mutate(ct=PRED.m500.pop+PRED.m500.pop*rnorm(128, 0, 0.001))
+    df$sex = recode_factor(df$sex, "Male"="aMale","Female"="Female")
+    meanage=rep(mean(df$age),dim(df)[1])
+    lm2=lm(ct~sex+(age)+I((age)^2), data=df)
+    coefsForGrowthCurves[[i]] <- coef(lm2) 
+  }
+
+  coefs_gm_wm_tcv_ct = do.call(cbind, coefsForGrowthCurves)
+  colnames(coefs_gm_wm_tcv_ct)=filesToLoad
+  
+  #reordering and adding other variables
+  coefs_all_vars = cbind(wm_volume=coefs_gm_wm_tcv_ct[,2],gm_volume=coefs_gm_wm_tcv_ct[,1],hippo_volume=c(7910,-650,70,-2),amygdala_volume=c(3170,-300,60,-1.5),icv=coefs_gm_wm_tcv_ct[,3],frontal_lobe_gm_thickness=coefs_gm_wm_tcv_ct[,4],cbcl_scr_syn_internal_r=c(3,.5,.2,-0.002),cbcl_scr_syn_external_r=c(4,-1,.3,-0.002),cbcl_scr_syn_attention_r=c(3,.7,.1,-.002),iq=c(100,0,0,0))
+
+  #getting hippocampus and amygdala growth curve from the following paper, adjusting it to match ABCD
+  #https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6867004/
+  
+  #the intercept term for cbcl is based on ABCD data
+
+
+```
+
+  
+```{r}
+
+  abcdFolder="./data/abcd-data-release-5.1/core/"
+  abcdMRI = read.csv(paste0(abcdFolder,"/imaging/mri_y_smr_vol_aseg.csv"))
+  abcdDem = read.csv(paste0(abcdFolder,"/abcd-general/abcd_p_demo.csv"))
+  abcd2 = abcdMRI %>% dplyr::select(subjectkey=src_subject_id, eventname, smri_vol_scs_wholeb)
+  
+  abcddata=read.csv("./data/ABCD_4.0/Behavioral_data_Package_1210643/screenAndCBCLAndEducationAndMRI.csv") 
+  abcddata2 <- abcddata[complete.cases(abcddata%>%dplyr::select(sex,interview_age.x, scrn_asd,demo_prnt_ed_v2,matches("cbcl"),matches("vol"))),] 
+  abcddata2 <- abcddata2 %>% mutate_at(c('interview_age.x','interview_age.y','smri_vol_scs_amygdalalh', 'smri_vol_scs_amygdalarh','smri_vol_cdk_total','cbcl_scr_syn_internal_r','cbcl_scr_syn_external_r','cbcl_scr_syn_attention_r','cbcl_scr_syn_totprob_r'), as.numeric)
+  abcddata2 = abcddata2 %>% mutate(amygVol = (smri_vol_scs_amygdalalh+smri_vol_scs_amygdalarh))
+  abcddata2 = abcddata2 %>% rename("age" = "interview_age.x")
+  abcddata2$sex=as.factor(abcddata2$sex)
+  abcddata2$scrn_asd=as.factor(abcddata2$scrn_asd)
+  abcd3 = left_join(abcd2, abcddata2 %>% dplyr::select(subjectkey, age, eventname))%>%filter(eventname=="baseline_year_1_arm_1")
+```
+
+
+```{r}
+#Get age, education, sd for random effects from ABCD data
+  demographic = read.csv(paste0(abcdFolder,"/abcd-general/abcd_p_demo.csv"))
+  #MRI
+  MRI = read.csv(paste0(abcdFolder,"/imaging/mri_y_smr_vol_aseg.csv"))
+  #ABCD has frontal pole, use that for frontal lobe
+  thickness = read.csv(paste0(abcdFolder,"/imaging//mri_y_smr_thk_dsk.csv"))
+  cbcl = read.csv(paste0(abcdFolder,"/mental-health/mh_p_cbcl.csv"))
+  nihtb = read.csv(paste0(abcdFolder,"/neurocognition/nc_y_nihtb.csv"))
+
+```
+
+```{r}
+  
+getABCDdata = function(seedNumber){
+  set.seed(seedNumber)
+  dem2 = demographic %>% dplyr::select(src_subject_id, eventname, demo_sex_v2, demo_brthdat_v2,demo_prnt_ed_v2,demo_prtnr_ed_v2)%>%filter(eventname=="baseline_year_1_arm_1")
+  dem2$demo_prnt_ed_v2=as.numeric(dem2$demo_prnt_ed_v2)
+  dem2$demo_prtnr_ed_v2=as.numeric(dem2$demo_prtnr_ed_v2)
+  #replace 777 and 999 with NA
+  pdem02b=dem2 %>% naniar::replace_with_na(replace=list(demo_prnt_ed_v2=c(777,999)))
+  pdem02b=pdem02b %>% naniar::replace_with_na(replace=list(demo_prtnr_ed_v2=c(777,999)))
+  pdem02b = pdem02b %>% rowwise() %>% mutate(maxparent_ed = max(demo_prnt_ed_v2,demo_prtnr_ed_v2, na.rm=TRUE))
+  dem3 = pdem02b %>% mutate(education=ifelse(maxparent_ed<13, 0,ifelse(maxparent_ed<18, 1, ifelse(maxparent_ed<19,2,3))))#this should be changed to 0,1,2,3
+  dem3 = dem3 %>% dplyr::select(-demo_prnt_ed_v2,-demo_prtnr_ed_v2,-maxparent_ed,-demo_brthdat_v2)
+  
+  MRI2 = MRI %>% dplyr::select(src_subject_id, eventname,"smri_vol_scs_intracranialv",matches("smri_vol_scs_cbwmatter"), matches("smri_vol_scs_ltventricle"), matches("smri_vol_scs_crbwmatter"), matches("smri_vol_scs_crbcortex"), matches("smri_vol_scs_amygdala"), matches("smri_vol_scs_hpus"))%>%filter(eventname=="baseline_year_1_arm_1")
+  
+  #for some reason cerebrum gm seems low compared to lifespan, that's why multiplying by six
+  demAndMRI = left_join(dem3, MRI2) %>% mutate(wm_volume = smri_vol_scs_cbwmatterlh+smri_vol_scs_cbwmatterrh,
+                                               gm_volume = 5*(smri_vol_scs_crbcortexlh+smri_vol_scs_crbcortexrh),
+                                               hippo_volume=smri_vol_scs_hpuslh+smri_vol_scs_hpusrh, 
+                                               amygdala_volume=smri_vol_scs_amygdalalh+smri_vol_scs_amygdalarh,
+                                               icv=1.2*(wm_volume+gm_volume)) #smri_vol_scs_intracranialv
+  
+  
+  thickness2 = thickness %>% dplyr::select(src_subject_id,eventname,  smri_thick_cdk_mean,smri_thick_cdk_frpolerh,smri_thick_cdk_frpolelh)%>%mutate(frontal_lobe_gm_thickness=((smri_thick_cdk_frpolerh+smri_thick_cdk_frpolelh)/2)) %>% dplyr::select(-smri_thick_cdk_frpolerh,-smri_thick_cdk_frpolelh) %>% filter(eventname=="baseline_year_1_arm_1")
+  demAndMRI = left_join(demAndMRI, thickness2) %>% dplyr::select(-matches("vol_"),-smri_thick_cdk_mean)
+  
+ 
+  cbcls2=cbcl %>% dplyr::select(src_subject_id, eventname, cbcl_scr_syn_internal_r, cbcl_scr_syn_external_r, cbcl_scr_syn_attention_r) %>% filter(eventname=="baseline_year_1_arm_1")
+  cbcls2$cbcl_scr_syn_internal_r=as.numeric(cbcls2$cbcl_scr_syn_internal_r)
+  cbcls2$cbcl_scr_syn_external_r=as.numeric(cbcls2$cbcl_scr_syn_external_r)
+  cbcls2$cbcl_scr_syn_attention_r=as.numeric(cbcls2$cbcl_scr_syn_attention_r)
+  demAndMRI = left_join(demAndMRI, cbcls2)
+
+  nihtb2 = nihtb %>% dplyr::select("src_subject_id", "eventname", iq="nihtbx_totalcomp_agecorrected") %>% filter(eventname=="baseline_year_1_arm_1")
+  demAndMRI = left_join(demAndMRI, nihtb2)
+  
+  #TODO: added abcddata4 since it has age in months and asd, but maybe not use it
+  names(demAndMRI)[1]="subjectkey"
+  demAndMRIFinal = left_join(abcd3 %>% dplyr::select(subjectkey, eventname, age), demAndMRI)
+  demAndMRIFinal = na.omit(demAndMRIFinal)
+
+  demAndMRIFinalM=demAndMRIFinal %>% dplyr::select(-eventname) %>% filter(age < 135) #age has 3 rows that seem wrong
+  names(demAndMRIFinalM)[2]="age"
+  
+  #modify Age
+  demAndMRIFinalM$age = demAndMRIFinalM$age - 30 #subtract 2.5 years, as ABCD was 9, 10 year olds
+  demAndMRIFinalM$age = (demAndMRIFinalM$age - rnorm(dim(demAndMRIFinalM)[1], 1, 1.5)) #modify by mean of 1 month and sd of 3
+  
+  #sex
+  demAndMRIFinalM$demo_sex_v2=demAndMRIFinalM$demo_sex_v2-1 #male:0, female:1
+  
+  names(demAndMRIFinalM)[3]="sex"
+  demAndMRIFinalM = demAndMRIFinalM %>% filter(sex==0 | sex==1)
+  
+  #modfiy IQ, so 15 is sd
+  demAndMRIFinalM$iq= demAndMRIFinalM$iq*.85 + rnorm(dim(demAndMRIFinalM)[1], .5, 3)
+  demAndMRIFinalM$iq = demAndMRIFinalM$iq + 15
+  demAndMRIFinalM$iq = round(demAndMRIFinalM$iq)
+ # demAndMRIFinalM[demAndMRIFinalM$iq>200, ]$iq = 200
+  
+  numberOfSamples = 10000
+  numberOfTimepoints = 7
+  numberOfRows=numberOfSamples*numberOfTimepoints
+  simulationModel = 3
+  
+  indexOfSubjects=sample(seq(1,dim(demAndMRIFinalM)[1]), size=numberOfSamples)
+  mysample=demAndMRIFinalM[indexOfSubjects,]
+  mysample$subjectkey=seq(10001,20000,1)
+  names(mysample)[1]="subject_id"
+
+  return(mysample)
+}
+
+```
+
+```{r}
+
+  generateData = function(seedNumber){
+      
+    mysample = getABCDdata(seedNumber)
+    mysample2 = mysample %>% dplyr::select(subject_id:iq)
+    #randomly assign ASD
+    newASD = rbinom(dim(mysample2)[1], 1, 0.03)
+    mysample2$scrn_asd = newASD
+  
+    sds = apply(demAndMRIFinalM[,5:14],2,sd)
+    zscore=scale(mysample[,5:14])
+    randomEffect = sweep(zscore, MARGIN=2,sds , `*`)
+
+    waves = vector("list", length = 7)
+    for (i in 1:7){
+      waves[[i]] = mysample2 %>% mutate(age=age+(i-1)*2*12+rnorm(1,1,2)) 
+    }
+    
+    allwaves = do.call(rbind, waves)
+    allwaves=as.data.frame(as.matrix(arrange(as.data.frame(allwaves), subject_id))) #probably should add age too
+
+    designMatrix = model.matrix(~subject_id+sex+I(age/12)+I((age/12)^2), data=allwaves)
+    colnames(designMatrix)=c("Intercept","subject_id","sex","age","age_square")
+  
+    rows = numberOfSamples*numberOfTimepoints
+     
+    X = designMatrix[1:rows, c(1,3:5)]
+    Betas = as.matrix(coefs_all_vars)
+    dim(X %*% Betas)
+    
+    numberOfRandomEffects = 1
+    Z <- Matrix(nrow = rows, ncol = numberOfSamples*numberOfRandomEffects, data = 0, sparse = TRUE)
+    Z <- as(Z, "dgTMatrix")
+    
+    for(i in 1:numberOfSamples){
+      Z[((i*numberOfTimepoints)-(numberOfTimepoints-1)):(i*numberOfTimepoints),(i-1)*numberOfRandomEffects+1]=1
+    }
+    
+    coefsForAgeAndAge2=(Betas*.01)[3:4,]
+    
+    randomSlopeAndQuad = matrix(NA, nrow=numberOfSamples, ncol=dim(coefsForAgeAndAge2)[2])
+    for(i in 1:dim(coefsForAgeAndAge2)[2]){
+      print(abs(coefsForAgeAndAge2[i]))
+      randomSlopeAndQuad[,i]=rnorm(numberOfSamples, 0, abs(coefsForAgeAndAge2[i]))
+    }
+    
+    #X: 70000 x 4
+    #B: 4 x 1, since I'm including multiple vars can be 4 x # of vars
+    #Z: 70000 x 10000
+    #u: 10000 x 1, since I'm including other vars 10000 x # of vars
+    #as.matrix(X)
+   
+    means = apply(allwaves[,5:14],2,mean)
+    #wm_volume                 gm_volume              hippo_volume           amygdala_volume                       icv 
+    #frontal_lobe_gm_thickness   cbcl_scr_syn_internal_r   cbcl_scr_syn_external_r  cbcl_scr_syn_attention_r                        iq 
+    e = cbind(rnorm(rows,0,means[[1]]*0.05),rnorm(rows,0,means[[2]]*0.05),rnorm(rows,0,means[[3]]*0.10),rnorm(rows,0,means[[4]]*0.10),rnorm(rows,0,means[[5]]*0.03), rnorm(rows,0,means[[6]]*0.05),rnorm(rows,0,means[[7]]*0.10),rnorm(rows,0,means[[8]]*0.10),rnorm(rows,0,means[[9]]*0.10),rnorm(rows,0,means[[10]]*0.02))
+
+    ys = X %*% Betas + Z %*% u + e
+    
+    sd(ys[,10])
+    mean(ys[,10])
+    
+    ysWithCov = cbind(allwaves[,1:4],site_id=rep("paint",rows),autism_diagnosis=rep(newASD,each=7), wave_number=rep(seq(1,numberOfTimepoints),numberOfSamples),as.matrix(ys))
+  
+    names(ysWithCov)[14:16]=c("cbcl_internalizing_raw_score","cbcl_externalizing_raw_score","cbcl_attentionproblem_raw_score")
+    
+    completedata=ysWithCov
+    names(completedata)[4]="parental_education"
+    
+    sdicv=mean(completedata$gm_volume+completedata$wm_volume)*0.01
+    completedata$icv = 1.2*(completedata$gm_volume+completedata$wm_volume)+rnorm(rows,0,sdicv)
+    
+    completedata = completedata %>% arrange(subject_id, age)
+
+    #DOB
+    wave1 = completedata %>% filter(wave_number=="1")
+    wave1_dob=as.Date("2024-05-13 00:18:49 EDT") - wave1$age*30.4167
+    alldob=rep(wave1_dob, each=numberOfTimepoints)
+    completedata$dob=alldob
+  
+  #brain_behavior_measurement_date
+    completedata = completedata  %>% mutate(brain_behavior_measurement_date=dob+age*30.4167)
+  
+    completedata = QC(completedata)
+
+    return(completedata)
+  }
+
+```
+```{r}
+
+QC = function(completedata){
+    completedata$cbcl_attentionproblem_raw_score=round(completedata$cbcl_attentionproblem_raw_score)
+      if(max(completedata$cbcl_attentionproblem_raw_score)>20){
+        completedata[completedata$cbcl_attentionproblem_raw_score>20,]$cbcl_attentionproblem_raw_score=20
+      }
+      if(min(completedata$cbcl_attentionproblem_raw_score)<0){
+        completedata[completedata$cbcl_attentionproblem_raw_score<0,]$cbcl_attentionproblem_raw_score=0
+      }
+      
+      completedata$cbcl_internalizing_raw_score=round(completedata$cbcl_internalizing_raw_score)
+      if(max(completedata$cbcl_internalizing_raw_score > 64)){
+         completedata[completedata$cbcl_internalizing_raw_score>64,]$cbcl_internalizing_raw_score=64
+      }
+      if(min(completedata$cbcl_internalizing_raw_score)<0){
+        completedata[completedata$cbcl_internalizing_raw_score<0,]$cbcl_internalizing_raw_score=0
+      }
+      
+      completedata$cbcl_externalizing_raw_score=round(completedata$cbcl_externalizing_raw_score)
+      if(max(completedata$cbcl_externalizing_raw_score)>70){
+        completedata[completedata$cbcl_externalizing_raw_score>70,]$cbcl_externalizing_raw_score=70
+      }
+      if(min(completedata$cbcl_externalizing_raw_score)<0){
+        completedata[completedata$cbcl_externalizing_raw_score<0,]$cbcl_externalizing_raw_score=0
+      }
+      
+      completedata$iq=round(completedata$iq)
+      if(max(completedata$iq)>200){
+        completedata[completedata$iq>200,]$iq=200
+      }
+      
+      return(completedata)
+    }
+```
+
+```{r}
+  # brain (wm_volume) predicting behavior (cbcl_attentionproblem_raw_score)
+  seed = 1101
+  set.seed(seed)
+  beta1 = rnorm(numberOfSamples,1.015,1.015*.01) 
+  gamma1=cbind(rnorm(numberOfSamples,-.015,0.001),
+               rnorm(numberOfSamples,-.015,0.001),
+               rnorm(numberOfSamples,-.015,0.001),
+               rnorm(numberOfSamples,-.015,0.001),
+               rnorm(numberOfSamples,-.015,0.001),
+               rnorm(numberOfSamples,-.015,0.001),
+               rnorm(numberOfSamples,-.015,0.001))
+
+  beta2 = rnorm(numberOfSamples,1.01,1.01*0.01)
+  gamma2 = rep(0, numberOfTimepoints)
+  noiselevel=1#500#0.003 #adjust if scaling
+  noiselevelAtt=.5 #0.005 #adjust if scaling
+  filename="nit_data1.csv"
+  
+  #rounding so behavior are integers
+  alphaExt = .95
+  alphaExtF = -.15 #this is the difference of M vs F
+  alphaInt = 1.01
+  alphaIntF = .02 #this is the difference of M vs F
+  noiselevelExt = .5
+  noiselevelInt = .5
+  
+  simulatedDataVol = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("wm_volume",seq(1,numberOfTimepoints)))))
+  simulatedDataBeh = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("cbcl_attentionproblem_raw_score",seq(1,numberOfTimepoints)))))
+  simulatedDataExt = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("cbcl_externalizing_raw_score",seq(1,numberOfTimepoints)))))
+  simulatedDataInt = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("cbcl_internalizing_raw_score",seq(1,numberOfTimepoints)))))
+  
+  df1=completedata %>% filter(wave_number==1) %>% dplyr::select("wm_volume","cbcl_attentionproblem_raw_score","cbcl_externalizing_raw_score","cbcl_internalizing_raw_score")
+  simulatedDataBeh[,1]=(df1$cbcl_attentionproblem_raw_score)
+  simulatedDataVol[,1]=(df1$wm_volume)/10000
+  
+  simulatedDataExt[,1] = df1$cbcl_externalizing_raw_score
+  simulatedDataInt[,1] = df1$cbcl_internalizing_raw_score
+
+  designMatrix2 = model.matrix(~subject_id+sex+I(age/12)+I((age/12)^2), data=wave1)
+  colnames(designMatrix2)=c("Intercept","subject_id","sex","age","age_square")
+
+  for(i in 1:(numberOfTimepoints-1)){
+  
+    simulatedDataBeh[,(i+1)]=beta1*simulatedDataBeh[,i] + gamma1[,i]*simulatedDataVol[,i]+ rnorm(numberOfSamples,0,noiselevelAtt)
+    simulatedDataVol[,(i+1)]=beta2*simulatedDataVol[,i] + gamma2[i]*simulatedDataBeh[,i]+ rnorm(numberOfSamples,0,noiselevel)
+  
+    simulatedDataExt[,(i+1)] = t(alphaExt + alphaExtF*designMatrix2[,"sex"])*simulatedDataExt[,i] + rnorm(numberOfSamples,0,noiselevelExt) 
+    simulatedDataInt[,(i+1)] = t(alphaInt + alphaIntF*designMatrix2[,"sex"])*simulatedDataInt[,i] + rnorm(numberOfSamples,0,noiselevelInt) 
+  
+    #set to zero if anything less than zero
+    simulatedDataBeh[simulatedDataBeh<0]=0
+  
+  }
+  
+  scaleBackBeh=simulatedDataBeh
+  scaleBackVol=simulatedDataVol
+
+  
+  simulatedDataBeh_long=as.data.frame(simulatedDataBeh) %>% pivot_longer(cols=starts_with("cbcl_attention"),names_to="wave",values_to="cbcl_attentionproblem_raw_score")
+  simulatedDataExt_long=as.data.frame(simulatedDataExt) %>% pivot_longer(cols=starts_with("cbcl_external"),names_to="wave",values_to="cbcl_externalizing_raw_score")
+  simulatedDataInt_long=as.data.frame(simulatedDataInt) %>% pivot_longer(cols=starts_with("cbcl_internal"),names_to="wave",values_to="cbcl_internalizing_raw_score")
+  simulatedDataWm_long=as.data.frame(simulatedDataVol) %>% pivot_longer(cols=starts_with("wm_volume"),names_to="wave",values_to="wm_volume")
+  
+  completedata1=generateData(seed)
+  completedata1$cbcl_externalizing_raw_score=round(simulatedDataExt_long$cbcl_externalizing_raw_score)
+  completedata1$cbcl_internalizing_raw_score=round(simulatedDataInt_long$cbcl_internalizing_raw_score)
+  completedata1$cbcl_attentionproblem_raw_score=round(simulatedDataBeh_long$cbcl_attentionproblem_raw_score)
+  completedata1$wm_volume=simulatedDataWm_long$wm_volume*10000
+  
+  
+  completedata1 = QC(completedata1)
+  write.csv(completedata1,file="./paint_data1_complete_part1.csv",row.names = FALSE)
+
+```
+
+```{r}
+  #behavior predicting brain 
+  #higher cbcl_internalizing_raw_score thinner frontal_lobe_gm_thickness, Schmaal, L., et al. (2017)
+  seed=1101 #combining paint 1 and 2
+  set.seed(seed)
+  beta1 = rnorm(numberOfSamples,1.015,1.5*.05) 
+  gamma1 = rep(0, numberOfTimepoints)
+  gamma2=cbind(rnorm(numberOfSamples,.0015,0.0002),
+             rnorm(numberOfSamples,.0015,0.0002),
+             rnorm(numberOfSamples,.0015,0.0002),
+             rnorm(numberOfSamples,.0015,0.0002),
+             rnorm(numberOfSamples,.0015,0.0002),
+             rnorm(numberOfSamples,.0015,0.0002),
+             rnorm(numberOfSamples,.0015,0.0002))
+
+  beta2 = rnorm(numberOfSamples,.99,0.001)
+  gamma2=cbind(rnorm(numberOfSamples,-.0015,0.0003), #changed sd to 0.0003
+               rnorm(numberOfSamples,-.0017,0.0002), #changed to 0.0017
+               rnorm(numberOfSamples,-.0017,0.0002), #changed to 0.0017
+               rnorm(numberOfSamples,-.0015,0.0002),
+               rnorm(numberOfSamples,-.0015,0.0003), #changed sd to .0003
+               rnorm(numberOfSamples,-.0015,0.0003), #changed sd to .0003
+               rnorm(numberOfSamples,-.0015,0.0003))
+
+  noiselevel=0.01
+  
+  #rounding so behavioral scores are integers
+  noiselevelExt = 1
+  noiselevelInt = 1
+  
+  simulatedDataVol = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("frontal_lobe_gm_thickness",seq(1,numberOfTimepoints)))))
+  simulatedDataBeh = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("cbcl_internalizing_raw_score",seq(1,numberOfTimepoints)))))
+
+  
+  df1=completedata %>% filter(wave_number==1) %>% dplyr::select("frontal_lobe_gm_thickness","cbcl_internalizing_raw_score")
+  simulatedDataBeh[,1]=(df1$cbcl_internalizing_raw_score)
+  simulatedDataVol[,1]=(df1$frontal_lobe_gm_thickness)
+
+  
+  designMatrix2 = model.matrix(~subject_id+sex+I(age/12)+I((age/12)^2), data=wave1)
+  colnames(designMatrix2)=c("Intercept","subject_id","sex","age","age_square")
+
+  for(i in 1:(numberOfTimepoints-1)){
+  
+    simulatedDataBeh[,(i+1)]=beta1*simulatedDataBeh[,i] + gamma1[i]*simulatedDataVol[,i]+ rnorm(numberOfSamples,0,noiselevelInt)
+    simulatedDataVol[,(i+1)]=beta2*simulatedDataVol[,i] + gamma2[i]*simulatedDataBeh[,i]+ rnorm(numberOfSamples,0,noiselevel)
+  
+    #set to zero if anything less than zero
+    simulatedDataBeh[simulatedDataBeh<0]=0
+  
+  }
+  
+  simulatedDataBeh_long=as.data.frame(simulatedDataBeh) %>% pivot_longer(cols=starts_with("cbcl_internal"),names_to="wave",values_to="cbcl_internalizing_raw_score")
+  simulatedDataBrain_long=as.data.frame(simulatedDataVol) %>% pivot_longer(cols=starts_with("frontal_lobe_gm_thickness"),names_to="wave",values_to="frontal_lobe_gm_thickness")
+  
+  completedata2=completedata1 
+  completedata2$cbcl_internalizing_raw_score=round(simulatedDataBeh_long$cbcl_internalizing_raw_score)
+  if(max(completedata2$cbcl_internalizing_raw_score)>64){
+    completedata2[completedata2$cbcl_internalizing_raw_score>64,]$cbcl_internalizing_raw_score=64
+  }
+  completedata2$frontal_lobe_gm_thickness=simulatedDataBrain_long$frontal_lobe_gm_thickness
+  
+  write.csv(completedata2,file="./paint_data1_complete.csv",row.names = FALSE)
+  
+  missing = rbinom(dim(completedata2)[1], 1, 0.1)
+  completedata2[missing==1,]$frontal_lobe_gm_thickness=NA
+  completedata2[missing==1,]$gm_volume=NA
+  completedata2[missing==1,]$wm_volume=NA
+  completedata2[missing==1,]$hippo_volume=NA
+  completedata2[missing==1,]$amygdala_volume=NA
+  completedata2[missing==1,]$icv=NA
+  
+  write.csv(completedata2,file="./paint_data1.csv",row.names = FALSE) #paint_date2.csv is paint_data5 from Tonya
+  
+```
+
+```{r}
+#brain predicting behavior - sensitive period
+#currently same as 2 except for sensitive period, plus add internalizing for autism
+numberOfSamples=10000
+numberOfTimepoints=7
+  seed=1103
+  set.seed(seed)
+  beta1 = rnorm(numberOfSamples,1.015,1.015*.02) 
+  gamma1 = rep(0, numberOfTimepoints)
+
+  beta2 = rnorm(numberOfSamples,.99,.99*.001)
+  gamma2 = rep(0, numberOfTimepoints)
+  gamma2 = c(0,0,0.0015,0.0015,0.0015,0,0) 
+  gamma2=cbind(rnorm(numberOfSamples,0,0.0002),
+           rnorm(numberOfSamples,0,0.0002),
+           rnorm(numberOfSamples,.0015,0.0002),
+           rnorm(numberOfSamples,.0015,0.0002),
+           rnorm(numberOfSamples,.0015,0.0002),
+           rnorm(numberOfSamples,0,0.0002),
+           rnorm(numberOfSamples,0,0.0002))
+
+  noiselevel=0.01
+  noiselevelAtt=.5 
+  noiselevelExt = 1
+  noiselevelInt = 1
+  
+  simulatedDataVol = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("frontal_lobe_gm_thickness",seq(1,numberOfTimepoints)))))
+  simulatedDataBeh = matrix(NA, nrow=numberOfSamples, ncol=numberOfTimepoints, dimnames=list(NULL,c(paste0("cbcl_externalizing_raw_score",seq(1,numberOfTimepoints)))))
+
+  df1=completedata %>% filter(wave_number==1) %>% dplyr::select("frontal_lobe_gm_thickness","cbcl_externalizing_raw_score")
+  simulatedDataBeh[,1]=(df1$cbcl_externalizing_raw_score)
+  simulatedDataVol[,1]=(df1$frontal_lobe_gm_thickness)
+  
+  designMatrix2 = model.matrix(~subject_id+sex+I(age/12)+I((age/12)^2), data=wave1)
+  colnames(designMatrix2)=c("Intercept","subject_id","sex","age","age_square")
+
+  for(i in 1:(numberOfTimepoints-1)){
+  
+    simulatedDataBeh[,(i+1)]=beta1*simulatedDataBeh[,i] + gamma1[i]*simulatedDataVol[,i]+rnorm(numberOfSamples,0,noiselevelExt)
+    simulatedDataVol[,(i+1)]=beta2*simulatedDataVol[,i] + gamma2[,i]*simulatedDataBeh[,i]+ rnorm(numberOfSamples,0,noiselevel)
+  
+    #set to zero if anything less than zero
+    simulatedDataBeh[simulatedDataBeh<0]=0
+  
+  }
+  
+  simulatedDataBeh_long=as.data.frame(simulatedDataBeh) %>% pivot_longer(cols=starts_with("cbcl_external"),names_to="wave",values_to="cbcl_externalizing_raw_score")
+  simulatedDataBrain_long=as.data.frame(simulatedDataVol) %>% pivot_longer(cols=starts_with("frontal_lobe_gm_thickness"),names_to="wave",values_to="frontal_lobe_gm_thickness")
+  
+  completedata3=generateData(seed)
+  completedata3$cbcl_externalizing_raw_score=round(simulatedDataBeh_long$cbcl_externalizing_raw_score)
+  completedata3$frontal_lobe_gm_thickness=simulatedDataBrain_long$frontal_lobe_gm_thickness
+  completedata3[completedata3$autism_diagnosis==1,]$cbcl_internalizing_raw_score=completedata3[completedata3$autism_diagnosis==1,]$cbcl_internalizing_raw_score+1
+  
+  cor(completedata3$cbcl_internalizing_raw_score,completedata3$frontal_lobe_gm_thickness)
+  cor(completedata3$cbcl_externalizing_raw_score,completedata3$frontal_lobe_gm_thickness)
+  
+  write.csv(completedata3,file="./paint_data3_complete.csv",row.names = FALSE)
+  
+  #have more men and lower parental education to drop out
+  subjectsWithMissing=sample(unique(completedata3$subject_id),numberOfSamples*.1, replace=FALSE)
+  subjectsWithMissing2=sample(unique(completedata3[completedata3$sex==0 & completedata3$parental_education<1,]$subject_id),150, replace=FALSE)
+  subjectsWithMissing3=sample(unique(completedata3[completedata3$sex==0 & completedata3$parental_education==1,]$subject_id),100, replace=FALSE)
+  subjectsWithMissing1 = union(subjectsWithMissing2, subjectsWithMissing3)
+  
+  completedata3$wm_volume = ifelse(completedata3$subject_id %in% subjectsWithMissing & completedata3$wave_number > 5, NA, completedata3$wm_volume)
+  completedata3$gm_volume = ifelse(completedata3$subject_id %in% subjectsWithMissing & completedata3$wave_number > 5, NA, completedata3$gm_volume)
+  completedata3$frontal_lobe_gm_thickness = ifelse(completedata3$subject_id %in% subjectsWithMissing & completedata3$wave_number > 5, NA, completedata3$frontal_lobe_gm_thickness)
+  completedata3$hippo_volume = ifelse(completedata3$subject_id %in% subjectsWithMissing & completedata3$wave_number > 5, NA, completedata3$hippo_volume)
+  completedata3$amygdala_volume = ifelse(completedata3$subject_id %in% subjectsWithMissing & completedata3$wave_number > 5, NA, completedata3$amygdala_volume)
+  completedata3$icv = ifelse(completedata3$subject_id %in% subjectsWithMissing & completedata3$wave_number > 5, NA, completedata3$icv)
+  
+  
+  completedata3$cbcl_externalizing_raw_score=ifelse(completedata3$subject_id %in% subjectsWithMissing1 & completedata3$wave_number > 5, NA, completedata3$cbcl_externalizing_raw_score)
+  completedata3$cbcl_internalizing_raw_score=ifelse(completedata3$subject_id %in% subjectsWithMissing1 & completedata3$wave_number > 5, NA, completedata3$cbcl_internalizing_raw_score)
+  completedata3$cbcl_attentionproblem_raw_score=ifelse(completedata3$subject_id %in% subjectsWithMissing1 & completedata3$wave_number > 5, NA, completedata3$cbcl_attentionproblem_raw_score)
+  
+  write.csv(completedata3,file="./paint_data3.csv",row.names = FALSE)
+  
+
+```
+
+
+
+
+
+
+  
